@@ -1,1 +1,4 @@
 params.local.yaml
+.nextflow.log*
+work/
+.nextflow*

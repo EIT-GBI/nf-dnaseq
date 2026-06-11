@@ -36,7 +36,7 @@ def strip_fastq_suffix(name: str) -> str:
 def parse_pair(path: Path) -> tuple[str, str] | None:
     """Parse a FASTQ file path to extract the sample name and read number."""
     name = strip_fastq_suffix(path.name)
-    match = re.match(r'(.+)_R([12])$', name)
+    match = re.match(r'(.+)_R([12])(?:_\d+)?$', name)
     if match:
         sample_name, read_num = match.groups()
         return sample_name, read_num
@@ -48,22 +48,25 @@ def parse_pair(path: Path) -> tuple[str, str] | None:
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input-dir', type=Path, required=True, help='Directory containing FASTQ files')
+    parser.add_argument('--input_dir', type=Path, required=True, help='Directory containing FASTQ files')
     parser.add_argument('--reference', type=Path, required=True, help='Path to reference genome FASTA file')
     parser.add_argument('--output', type=Path, default=Path('samplesheet.csv'), help='Output CSV file (default: samplesheet.csv)')
     args = parser.parse_args()
 
-    if not args.input_dir.is_dir():
-        print(f"Error: Input directory '{args.input_dir}' does not exist or is not a directory.", file=sys.stderr)
+    input_dir = args.input_dir.resolve()
+    if not input_dir.is_dir():
+        print(f"Error: Input directory '{input_dir}' does not exist or is not a directory.", file=sys.stderr)
         sys.exit(1)
 
-    if not args.reference.is_file():
-        print(f"Error: Reference genome file '{args.reference}' does not exist or is not a file.", file=sys.stderr)
+    # Resolve to absolute path, otherwise it'll parse nextflows work dir. ask me how I know
+    reference = args.reference.resolve()
+    if not reference.is_file():
+        print(f"Error: Reference genome file '{reference}' does not exist or is not a file.", file=sys.stderr)
         sys.exit(1)
 
-    fastqs = find_fastq(input_dir=args.input-dir)
+    fastqs = find_fastq(input_dir=input_dir)
     if not fastqs:
-        print(f"Error: No FASTQ files found in directory '{args.input_dir}'.", file=sys.stderr)
+        print(f"Error: No FASTQ files found in directory '{input_dir}'.", file=sys.stderr)
         sys.exit(1)
 
     pairs: dict[str, dict[str, Path]] = defaultdict(dict)
@@ -86,9 +89,9 @@ def main():
             'sample': sample,
             'R1': reads['R1'],
             'R2': reads['R2'],
-            'reference': args.reference
+            'reference': reference
         })
-
+    print(rows)
     if not rows:
         print("Error: No valid sample pairs found. Exiting.", file=sys.stderr)
         sys.exit(1)
