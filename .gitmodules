@@ -1,0 +1,3 @@
+[submodule "modules/fastp"]
+	path = modules/fastp
+	url = https://github.com/eit-gbi/nf-mod-fastp.git
