@@ -1,3 +1,6 @@
 [submodule "modules/fastp"]
 	path = modules/fastp
 	url = https://github.com/eit-gbi/nf-mod-fastp.git
+[submodule "modules/fastqc"]
+	path = modules/fastqc
+	url = https://github.com/eit-gbi/nf-mod-fastqc.git

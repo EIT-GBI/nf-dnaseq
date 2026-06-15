@@ -5,7 +5,7 @@
 //
 include {PREPARE_SAMPLESHEET} from './modules/samplesheet/prepare/main.nf'
 include {TRIM} from './modules/fastp/trim/main.nf'
-include {FASTQC} from './modules/fastqc/qc/main.nf'
+include {FASTQC} from './modules/fastqc/main.nf'
 
 
 //
@@ -35,10 +35,10 @@ workflow {
     inputs = samplesheet_ch
         .splitCsv(header: true)
         .multiMap { row ->
-        reads:  tuple(row.sample, 
+        reads:  tuple([id: row.sample], 
                 file(row.R1, checkIfExists: true), 
                 file(row.R2, checkIfExists: true))
-        reference: tuple(row.sample,
+        reference: tuple([id: row.sample],
                 file(row.reference, checkIfExists: true))   
         }
     
