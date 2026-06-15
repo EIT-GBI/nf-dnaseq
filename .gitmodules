@@ -4,3 +4,9 @@
 [submodule "modules/fastqc"]
 	path = modules/fastqc
 	url = https://github.com/eit-gbi/nf-mod-fastqc.git
+[submodule "modules/bwa"]
+	path = modules/bwa
+	url = https://github.com/eit-gbi/nf-mod-bwa.git
+[submodule "modules/samtools"]
+	path = modules/samtools
+	url = https://github.com/eit-gbi/nf-mod-samtools.git

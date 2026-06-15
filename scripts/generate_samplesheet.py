@@ -49,19 +49,13 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_dir', type=Path, required=True, help='Directory containing FASTQ files')
-    parser.add_argument('--reference', type=Path, required=True, help='Path to reference genome FASTA file')
+    parser.add_argument('--reference', type=Path, required=True, help='Reference FASTA filename')
     parser.add_argument('--output', type=Path, default=Path('samplesheet.csv'), help='Output CSV file (default: samplesheet.csv)')
     args = parser.parse_args()
 
     input_dir = args.input_dir.resolve()
     if not input_dir.is_dir():
         print(f"Error: Input directory '{input_dir}' does not exist or is not a directory.", file=sys.stderr)
-        sys.exit(1)
-
-    # Resolve to absolute path, otherwise it'll parse nextflows work dir. ask me how I know
-    reference = args.reference.resolve()
-    if not reference.is_file():
-        print(f"Error: Reference genome file '{reference}' does not exist or is not a file.", file=sys.stderr)
         sys.exit(1)
 
     fastqs = find_fastq(input_dir=input_dir)
@@ -89,7 +83,7 @@ def main():
             'sample': sample,
             'R1': reads['R1'],
             'R2': reads['R2'],
-            'reference': reference
+            'reference': args.reference
         })
     print(rows)
     if not rows:

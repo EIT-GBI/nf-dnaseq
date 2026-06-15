@@ -8,7 +8,7 @@ process PREPARE_SAMPLESHEET {
     input:
     path pyscript
     path input_dir
-    path reference
+    val reference
 
     output:
     path "samplesheet.csv", emit: csv
