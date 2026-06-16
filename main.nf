@@ -12,6 +12,7 @@ include {TRIM} from './modules/fastp/trim/main.nf'
 include {FASTQC} from './modules/fastqc/main.nf'
 include {BWA_MEM} from './modules/bwa/mem/main.nf'
 include {SAMTOOLS_INDEX} from './modules/samtools/index/main.nf'
+include {FQ2BAM} from './modules/parabricks/fq2bam/main.nf'
 
 include {refFasta; bwaIndexFor; faidxFor} from './modules/utils/references.nf'
 
@@ -76,19 +77,15 @@ workflow {
         index: bwaIndexFor(meta)   
     }
 
-    BWA_MEM(aln_in.reads, aln_in.index)
-    SAMTOOLS_INDEX(BWA_MEM.out.bam)
-    bam_ch = SAMTOOLS_INDEX.out.bam
-
-    // if (params.alignment.device == 'gpu'){
-    //     PARABRICKS_FQ2BAM(aln_in.reads, aln_in.index)
-    //     bam_ch = PARABRICKS_FQ2BAM.out.bam
-    // }
-    // else {
-    //     BWA_MEM(aln_in.reads, aln_in.index)
-    //     SAMTOOLS_INDEX(BWA_MEM.out.bam)
-    //     bam_ch = SAMTOOLS_INDEX.out.bam
-    // }
+    if (params.alignment.device == 'gpu'){
+        FQ2BAM(aln_in.reads, aln_in.index)
+        bam_ch = FQ2BAM.out.bam
+    }
+    else {
+        BWA_MEM(aln_in.reads, aln_in.index)
+        SAMTOOLS_INDEX(BWA_MEM.out.bam)
+        bam_ch = SAMTOOLS_INDEX.out.bam
+    }
 
     println bam_ch
 

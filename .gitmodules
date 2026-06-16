@@ -10,3 +10,6 @@
 [submodule "modules/samtools"]
 	path = modules/samtools
 	url = https://github.com/eit-gbi/nf-mod-samtools.git
+[submodule "modules/parabricks"]
+	path = modules/parabricks
+	url = https://github.com/eit-gbi/nf-mod-parabricks.git
