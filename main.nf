@@ -8,12 +8,13 @@ include {PREPARE_SAMPLESHEET} from './modules/samplesheet/prepare/main.nf'
 //
 // Modules loaded from nf-mod-repos
 //
-include {TRIM} from './modules/fastp/trim/main.nf'
-include {FASTQC} from './modules/fastqc/main.nf'
+include {FASTP_TRIM} from './modules/fastp/trim/main.nf'
+//include {FASTQC} from './modules/fastqc/main.nf'
 include {BWA_MEM} from './modules/bwa/mem/main.nf'
 include {SAMTOOLS_INDEX} from './modules/samtools/index/main.nf'
-include {FQ2BAM} from './modules/parabricks/fq2bam/main.nf'
-
+include {SAMTOOLS_FLAGSTAT} from './modules/samtools/flagstat/main.nf'
+include {PARABRICKS_FQ2BAM} from './modules/parabricks/fq2bam/main.nf'
+include {BEDTOOLS_BIGWIG} from './modules/bedtools/bigwig/main.nf'
 include {refFasta; bwaIndexFor; faidxFor} from './modules/utils/references.nf'
 
 
@@ -59,8 +60,8 @@ workflow {
 
     // Trim the reads
     if (params.trimmer == 'fastp') {
-        TRIM(reads_ch)
-        trimmed_ch = TRIM.out.reads
+        FASTP_TRIM(reads_ch)
+        trimmed_ch = FASTP_TRIM.out.reads     // tuple(meta, r1, r2)
     }
     else if (params.trimmer == 'cutadapt') {
         // TODO implement cutadapt
@@ -69,7 +70,7 @@ workflow {
     }
 
     // QC on the trimmed reads
-    FASTQC(trimmed_ch)
+    //FASTQC(trimmed_ch)
 
     // Create an alignment channel with the trimmed reads and the reference files
     aln_in = trimmed_ch.multiMap { meta, r1, r2 ->
@@ -78,15 +79,19 @@ workflow {
     }
 
     if (params.alignment.device == 'gpu'){
-        FQ2BAM(aln_in.reads, aln_in.index)
-        bam_ch = FQ2BAM.out.bam
+        PARABRICKS_FQ2BAM(aln_in.reads, aln_in.index)
+        bam_ch = PARABRICKS_FQ2BAM.out.bam     // tuple(meta, bam, bai)
     }
     else {
         BWA_MEM(aln_in.reads, aln_in.index)
         SAMTOOLS_INDEX(BWA_MEM.out.bam)
-        bam_ch = SAMTOOLS_INDEX.out.bam
+        bam_ch = SAMTOOLS_INDEX.out.bam     // tuple(meta, bam, bai)
     }
 
-    println bam_ch
+    // Alignment metrics
+    SAMTOOLS_FLAGSTAT(bam_ch.map { meta, bam, bai -> tuple(meta, bam) })
+
+    
+
 
 }

@@ -13,3 +13,6 @@
 [submodule "modules/parabricks"]
 	path = modules/parabricks
 	url = https://github.com/eit-gbi/nf-mod-parabricks.git
+[submodule "modules/bedtools"]
+	path = modules/bedtools
+	url = https://github.com/eit-gbi/nf-mod-bedtools.git
