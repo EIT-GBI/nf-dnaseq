@@ -9,7 +9,7 @@ include {PREPARE_SAMPLESHEET} from './modules/samplesheet/prepare/main.nf'
 // Modules loaded from nf-mod-repos
 //
 include {FASTP_TRIM} from './modules/fastp/trim/main.nf'
-//include {FASTQC} from './modules/fastqc/main.nf'
+include {FASTQC_FASTQC} from './modules/fastqc/fastqc/main.nf'
 include {BWA_MEM} from './modules/bwa/mem/main.nf'
 include {SAMTOOLS_INDEX} from './modules/samtools/index/main.nf'
 include {SAMTOOLS_FLAGSTAT} from './modules/samtools/flagstat/main.nf'
@@ -70,7 +70,7 @@ workflow {
     }
 
     // QC on the trimmed reads
-    //FASTQC(trimmed_ch)
+    FASTQC_FASTQC(trimmed_ch)
 
     // Create an alignment channel with the trimmed reads and the reference files
     aln_in = trimmed_ch.multiMap { meta, r1, r2 ->
