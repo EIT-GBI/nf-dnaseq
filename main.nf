@@ -91,7 +91,12 @@ workflow {
     // Alignment metrics
     SAMTOOLS_FLAGSTAT(bam_ch.map { meta, bam, bai -> tuple(meta, bam) })
 
-    
+    // Create bigwig files
+    bigwig_in = bam_ch.multiMap { meta, bam, bai ->
+        reads: tuple(meta, bam, bai)
+        fasta: faidxFor(meta)
+    }
+    BEDTOOLS_BIGWIG(bigwig_in.reads, bigwig_in.fasta)    
 
 
 }
