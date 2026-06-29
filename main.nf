@@ -14,7 +14,13 @@ include {BWA_MEM} from './modules/bwa/mem/main.nf'
 include {SAMTOOLS_INDEX} from './modules/samtools/index/main.nf'
 include {SAMTOOLS_FLAGSTAT} from './modules/samtools/flagstat/main.nf'
 include {PARABRICKS_FQ2BAM} from './modules/parabricks/fq2bam/main.nf'
+include {PARABRICKS_DEEPVARIANT} from './modules/parabricks/deepvariant/main.nf'
+include {PARABRICKS_MUTECTCALLER} from './modules/parabricks/mutectcaller/main.nf'
 include {BEDTOOLS_BIGWIG} from './modules/bedtools/bigwig/main.nf'
+include {BCFTOOLS_CONSENSUS} from './modules/bcftools/consensus/main.nf'
+include {BCFTOOLS_CALL} from './modules/bcftools/call/main.nf'
+include {BCFTOOLS_CSV} from './modules/bcftools/csv/main.nf'
+include {BCFTOOLS_VCF} from './modules/bcftools/vcf/main.nf'
 include {refFasta; bwaIndexFor; faidxFor} from './modules/utils/references.nf'
 
 
@@ -96,7 +102,44 @@ workflow {
         reads: tuple(meta, bam, bai)
         fasta: faidxFor(meta)
     }
-    BEDTOOLS_BIGWIG(bigwig_in.reads, bigwig_in.fasta)    
+    BEDTOOLS_BIGWIG(bigwig_in.reads, bigwig_in.fasta)  
+
+    // Varian calling
+    // bcftools
+    if ('bcftools' in params.variant_callers) {
+        bcf_in = bam_ch.multiMap { meta, bam, bai ->
+            bam: tuple(meta, bam, bai)
+            faidx: faidxFor(meta)
+        }
+        BCFTOOLS_CALL(bcf_in.bam, bcf_in.faidx)
+        BCFTOOLS_VCF(BCFTOOLS_CALL.out.bcf)
+        BCFTOOLS_CSV(BCFTOOLS_CALL.out.bcf)
+        
+        cons_in = BCFTOOLS_CALL.out.bcf.multiMap { meta, bcf, csi ->
+            bcf:   tuple(meta, bcf, csi)
+            faidx: faidxFor(meta)
+        }
+        BCFTOOLS_CONSENSUS(cons_in.bcf, cons_in.faidx)
+
+    }
+
+    // deepvariant
+    if ('deepvariant' in params.variant_callers) {
+        dv_in = bam_ch.multiMap { meta, bam, bai ->
+            bam: tuple(meta, bam, bai)
+            faidx: faidxFor(meta)
+        }
+        PARABRICKS_DEEPVARIANT(dv_in.bam, dv_in.faidx)
+    }
+
+    // mutect2
+    if ('mutect2' in params.variant_callers || 'mutect' in params.variant_callers) {  
+        mt_in = bam_ch.multiMap { meta, bam, bai ->
+            bam: tuple(meta, bam, bai)
+            faidx: faidxFor(meta)
+        }
+        PARABRICKS_MUTECTCALLER(mt_in.bam, mt_in.faidx)
+    }
 
 
 }
