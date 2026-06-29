@@ -1,0 +1,35 @@
+# you should only need a samplesheet to run the pipeline here
+samplesheet: null
+outdir: '/mnt/gbi-shared/home/cristian-eitgbi/data/nf-dnaseq-test/results/'
+
+# if you don't have a samplesheet specify path to fastq files and reference genome
+fastq_dir: '/mnt/gbi-shared/home/cristian-eitgbi/data/nf-dnaseq-test/fastq/'
+reference_genome: 'mouse/MDS42_r24-30_27B_SC.fasta'
+
+# dir that stores all the reference genomes
+reference_dir: "/mnt/gbi-shared/home/cristian-eitgbi/data/references/"
+
+device: 'cpu' # 'cpu' or 'gpu'
+
+trimmer: 'fastp' # 'fastp' or 'cutadapt'
+
+# alignment params
+alignment:
+  threads: 4
+  device: 'cpu' # 'cpu' or 'gpu'
+
+# variant calling params
+variant_callers: # options: bcftools, deepvariant, mutect2
+  - bcftools
+#  - deepvariant
+#  - mutect2
+
+min_mapq: 20
+ploidy: 1
+min_depth: 10
+
+# scripts params
+scripts:
+  py_samplesheet: "./scripts/generate_samplesheet.py"
+
+ucsc_dir: null
