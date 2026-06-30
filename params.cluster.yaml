@@ -1,9 +1,9 @@
 # you should only need a samplesheet to run the pipeline here
 samplesheet: null
-outdir: '/mnt/gbi-shared/home/cristian-eitgbi/data/nf-dnaseq-test/results/'
+outdir: '/mnt/gbi-shared/home/cristian-eitgbi/data/misc/nf-dnaseq-test/results/'
 
 # if you don't have a samplesheet specify path to fastq files and reference genome
-fastq_dir: '/mnt/gbi-shared/home/cristian-eitgbi/data/nf-dnaseq-test/fastq/'
+fastq_dir: '/mnt/gbi-shared/home/cristian-eitgbi/data/misc/nf-dnaseq-test/fastq/'
 reference_genome: 'mouse/MDS42_r24-30_27B_SC.fasta'
 
 # dir that stores all the reference genomes
