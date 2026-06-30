@@ -44,7 +44,7 @@ workflow {
     else if (params.fastq_dir && params.reference_genome) {
         PREPARE_SAMPLESHEET(
             file("${projectDir}/" + params.scripts.py_samplesheet), 
-            file(params.fastq_dir, checkIfExists: true), 
+            file(params.fastq_dir), 
             params.reference_genome
             )
         samplesheet_ch = PREPARE_SAMPLESHEET.out.csv
