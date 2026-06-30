@@ -53,6 +53,11 @@ workflow {
         error "You must provide either a samplesheet or a fastq directory and reference genome."
     }
 
+    // Parse the variant callers parameter into a list
+    def callers = (params.variant_callers instanceof List)
+        ? params.variant_callers
+        : "${params.variant_callers}".tokenize(',')*.trim()
+
 
     // Parse each row, splitting it into reads and reference channels
     reads_ch = samplesheet_ch
@@ -106,7 +111,7 @@ workflow {
 
     // Varian calling
     // bcftools
-    if ('bcftools' in params.variant_callers) {
+    if ('bcftools' in callers) {
         bcf_in = bam_ch.multiMap { meta, bam, bai ->
             bam: tuple(meta, bam, bai)
             faidx: faidxFor(meta)
@@ -124,7 +129,7 @@ workflow {
     }
 
     // deepvariant
-    if ('deepvariant' in params.variant_callers) {
+    if ('deepvariant' in callers) {
         dv_in = bam_ch.multiMap { meta, bam, bai ->
             bam: tuple(meta, bam, bai)
             faidx: faidxFor(meta)
@@ -133,7 +138,7 @@ workflow {
     }
 
     // mutect2
-    if ('mutect2' in params.variant_callers || 'mutect' in params.variant_callers) {  
+    if ('mutect2' in callers || 'mutect' in callers) {  
         mt_in = bam_ch.multiMap { meta, bam, bai ->
             bam: tuple(meta, bam, bai)
             faidx: faidxFor(meta)
