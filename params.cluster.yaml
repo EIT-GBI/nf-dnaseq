@@ -25,6 +25,7 @@ variant_callers: # options: bcftools, deepvariant, mutect2
 #  - mutect2
 
 min_mapq: 20
+min_qual: 20
 ploidy: 1
 min_depth: 10
 
