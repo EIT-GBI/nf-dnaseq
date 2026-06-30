@@ -21,7 +21,7 @@ alignment:
 # variant calling params
 variant_callers: # options: bcftools, deepvariant, mutect2
   - bcftools
-#  - deepvariant
+  - deepvariant
 #  - mutect2
 
 min_mapq: 20
