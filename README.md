@@ -252,3 +252,9 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 | GitHub `403` on `git submodule update` | Private repo; use a PAT with `repo` scope, authorize for SSO |
 | `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
 
+
+## TODO list
+- [ ] Add `cutadapt` trimmer option.
+- [ ] Add 'gatk' variant caller option.
+- [ ] Add tmux instructions for cluster runs.
+
