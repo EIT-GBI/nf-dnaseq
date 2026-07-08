@@ -257,4 +257,5 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 - [ ] Add `cutadapt` trimmer option.
 - [ ] Add 'gatk' variant caller option.
 - [ ] Add tmux instructions for cluster runs.
+- [ ] Add produce csvs for all variant callers. Easy for inspection.
 
