@@ -63,6 +63,8 @@ There is a section below on various ways to provide your inputs (FASTQ files, re
 
 ### 3. Run on the cluster
 
+Run the command below from the **login node**. It will submit jobs to the SLURM scheduler and run the pipeline on compute nodes. The `-resume` flag is safe to include; it reuses cached results from previous runs.
+
 ```bash
 nextflow run main.nf -params-file params.cluster.yaml -profile cluster -resume
 ```
