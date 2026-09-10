@@ -42,32 +42,80 @@ flowchart TD
 
 ---
 
-## One-time cluster setup
 
-Do these once per checkout. Most first-run problems come from skipping one of them.
+## TLDR: Run it on the cluster
 
-### 1. Clone **with submodules**
+You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
 
-The entire pipeline uses tool modules (fastp, bwa, samtools, fastqc, bedtools, bcftools, parabricks).  These are technically git **submodules**, meaning that they live in their own github repositories and are just imported into this repository. A plain `git clone` will fail, as it leaves the module folders empty and Nextflow will fail. We need the `--recurse-submodules` flag to clone the modules too:
+### 1. Go to the folder where you want your results
 
-```bash
-git clone --recurse-submodules https://github.com/eit-gbi/nf-dnaseq.git
-cd nf-dnaseq
-```
-
-Some module repos are **private** (e.g. parabricks, bcftools). If prompted for a GitHub username/password, you need a **Personal Access Token**. #TODO: add instructions for creating a PAT. 
-
-### 2. Add params information for your data
-
-There is a section below on various ways to provide your inputs (FASTQ files, reference genome, etc.). The easiest is to open `params.cluster.yaml` and edit it for your data.
-
-### 3. Run on the cluster
-
-Run the command below from the **login node**. It will submit jobs to the SLURM scheduler and run the pipeline on compute nodes. The `-resume` flag is safe to include; it reuses cached results from previous runs.
+Set up a directory where you want your dataset results to go to. Nextflow writes `work/` (large, temporary) and your `outdir` relative to wherever you launch it, so  start in that directory. For example, let's assume your dataset is called `my-illumina-run`:
 
 ```bash
-nextflow run main.nf -params-file params.cluster.yaml -profile cluster -resume
+# !! Change this to your dataset name !!
+dataset_name=my-illumina-run # change this to your dataset name
 ```
+
+```bash
+mkdir -p /mnt/lustre/users/$USER/data/$dataset_name
+cd /mnt/lustre/users/$USER/data/$dataset_name
+```
+
+### 2. Fetch the params file
+
+```bash
+curl -O https://raw.githubusercontent.com/EIT-GBI/nf-dnaseq/main/params.cluster.yaml
+```
+
+### 3. Edit it for your data
+
+```bash
+nano params.cluster.yaml     # or vim, or edit it in your interactive session.
+```
+
+At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, `reference_dir`, and `outdir`. See [Key parameters](#key-parameters) for the full list.
+
+### 4. Submit the run
+
+```bash
+sbatch -J nf-driver -p cpu \
+  --wrap="nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+    -params-file params.cluster.yaml -profile cluster -resume"
+```
+
+Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f slurm-<jobid>.out`.
+
+### What each part does
+
+| Part | What it does |
+|---|---|
+| `sbatch` | Submits the job to SLURM and returns immediately. The job survives you logging out. |
+| `-J nf-driver` | Job **name**. This job is only the Nextflow *driver* — it submits and babysits the real work; the actual tools run in their own separate jobs. |
+| `-p cpu` | **Partition** (queue) for the driver. The driver itself is tiny, so `cpu` is right even for GPU pipelines — the Parabricks steps request the `gpu` partition themselves. |
+| `--wrap="..."` | Runs this command instead of you writing a `#SBATCH` script file. Everything inside the quotes is what actually executes on the node. |
+| `nextflow run <url>` | Pulls the pipeline from GitHub and runs it. No clone needed — Nextflow caches it under `~/.nextflow/assets/`. |
+| `-latest` | Re-pull the newest commit on the default branch. Without this, Nextflow silently reuses whatever it cached the first time, so you'd miss bug fixes. |
+| `-params-file params.cluster.yaml` | Your inputs and settings (this is the file you edited in step 3). |
+| `-profile cluster` | SLURM executor + Apptainer containers. |
+| `-resume` | Reuse cached results from previous runs. Always safe to include. |
+
+> The driver job runs for as long as the whole pipeline takes, so it needs a generous walltime. Add `-t 5-00:00:00` (5 days) if your partition's default limit is shorter than your run.
+
+### Why `sbatch` and not just running it in the terminal
+
+The cluster is still under active development, and `tmux` sessions have been getting killed unpredictably. If the Nextflow driver dies mid-run, the jobs it already submitted are orphaned and you have to clean up and `-resume`. Handing the driver to SLURM avoids that entirely.
+
+### Alternative: run it in a tmux session
+
+If your run is small, you want to watch the progress bars live, and you don't mind the risk of being disconnected, run it interactively instead:
+
+```bash
+tmux new -s nf              # start a named session
+nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+  -params-file params.cluster.yaml -profile cluster -resume
+```
+
+Detach with `Ctrl-b` then `d`, and come back later with `tmux attach -t nf`. If the session does get killed, just re-run the same command with `-resume` — completed tasks are cached.
 
 ---
 
@@ -119,17 +167,9 @@ Build them once with `bwa index genome.fasta` and `samtools faidx genome.fasta`.
 
 ---
 
-## Running on the cluster
+## Key parameters
 
-```bash
-nextflow run main.nf -params-file params.cluster.yaml -profile cluster -resume
-```
-
-- `-profile cluster` → SLURM executor + Apptainer containers.
-- `-params-file params.cluster.yaml` → your inputs and settings.
-- `-resume` → reuse cached results from previous runs (always safe to include).
-
-Copy `params.cluster.yaml` and edit it for your data. Key parameters:
+These live in `params.cluster.yaml`:
 
 | Parameter | Meaning |
 |---|---|
@@ -155,6 +195,7 @@ variant_callers:
 
 ---
 
+
 ## Overriding parameters
 
 A parameter can be set in three places. They form **layers**, and higher layers win:
@@ -176,6 +217,8 @@ flowchart TD
 > **config  <  params-file  <  command line**
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
+
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-recoded-alignment.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
 
 ### Examples
 
@@ -258,6 +301,6 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 ## TODO list
 - [ ] Add `cutadapt` trimmer option.
 - [ ] Add 'gatk' variant caller option.
-- [ ] Add tmux instructions for cluster runs.
+- [x] Add tmux instructions for cluster runs.
 - [ ] Add produce csvs for all variant callers. Easy for inspection.
 
