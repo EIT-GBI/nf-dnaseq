@@ -43,6 +43,34 @@ flowchart TD
 ---
 
 
+## Requirements
+
+- **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
+  aborts on anything older). To use a specific version without installing it
+  system-wide: `NXF_VER=26.04.6 nextflow run ...`
+- A container engine: Docker (`-profile docker`) or Apptainer (`-profile cluster`).
+
+If you clone the repo rather than letting Nextflow fetch it, the modules are git
+submodules, so clone recursively — a plain clone leaves `modules/` empty and every
+`include` fails:
+
+```bash
+git clone --recursive https://github.com/EIT-GBI/nf-dnaseq.git
+# already cloned?
+git submodule update --init --recursive
+```
+
+### Quick check that everything works
+
+A small end-to-end run on a public test dataset (a ~30 KB SARS-CoV-2 genome and
+two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
+
+```bash
+nextflow run . -profile test,docker
+```
+
+---
+
 ## TLDR: Run it on the cluster
 
 You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
@@ -218,7 +246,7 @@ flowchart TD
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
 
-> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-recoded-alignment.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
 
 ### Examples
 
@@ -256,19 +284,31 @@ Results are published under `outdir`:
 
 ```
 outdir/
-├── samplesheet/          # generated samplesheet.csv
-├── trimmed/              # fastp reports (html/json)
+├── samplesheet/          # generated samplesheet.csv (only when the pipeline built one)
+├── trimmed/              # fastp reports (html/json) - not the trimmed FASTQs
 ├── qc/
 │   ├── fastqc/           # FastQC reports
 │   └── flagstat/         # samtools flagstat metrics
-├── alignment/            # sorted BAM + index
+├── alignment/            # sorted BAM + index (+ duplicate metrics on the GPU path)
 ├── bigwig/               # coverage tracks (.bw)
+├── consensus/            # consensus FASTA
 └── variants/
     ├── bcf/  vcf/  csv/   # bcftools outputs
-    ├── consensus/         # consensus FASTA
     ├── deepvariant/       # DeepVariant VCFs (GPU)
     └── mutect/            # Mutect2 VCFs (GPU)
 ```
+
+Publishing is defined by the `output {}` block at the bottom of `main.nf`, not by
+`publishDir` directives inside the modules. That means the modules stay reusable
+across pipelines, and the whole results tree can be relocated from the command
+line without touching any config:
+
+```bash
+nextflow run . -profile cluster -params-file params.cluster.yaml -output-dir /path/to/results
+```
+
+`--outdir` still works and remains the documented knob; `-output-dir` (or `-o`)
+overrides it.
 
 ---
 

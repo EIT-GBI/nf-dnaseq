@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (Nextflow strict syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v2
+        with:
+          version: '26.04.4'
+
+      - name: nextflow lint
+        run: nextflow lint -o concise .
+
+  test:
+    name: Run pipeline (Nextflow ${{ matrix.NXF_VER }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in manifest.nextflowVersion, and the latest 26.04 patch
+        NXF_VER: ['26.04.4', '26.04.6']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v2
+        with:
+          version: ${{ matrix.NXF_VER }}
+
+      - name: End-to-end run (CPU path, bcftools)
+        run: nextflow run . -profile test,docker --outdir results_ci
+
+      - name: Check the published layout
+        run: |
+          set -euo pipefail
+          for d in alignment bigwig consensus qc/fastqc qc/flagstat trimmed \
+                   variants/bcf variants/vcf variants/csv; do
+            if [ ! -d "results_ci/$d" ]; then
+              echo "::error::expected published directory missing: $d"
+              exit 1
+            fi
+          done
+          # publishDir must not have crept back in alongside the output block
+          if grep -rn "publishDir" --include='*.nf' .; then
+            echo "::error::publishDir found; publishing belongs in the output block in main.nf"
+            exit 1
+          fi
+          echo "Published layout OK"
+
+      - name: GPU path (stub - no GPU available in CI)
+        run: |
+          nextflow run . -profile test -stub-run \
+            --alignment.device gpu \
+            --variant_callers bcftools,deepvariant,mutect2 \
+            --outdir results_gpu_stub
+          test -d results_gpu_stub/variants/deepvariant
+          test -d results_gpu_stub/variants/mutect
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextflow-log-${{ matrix.NXF_VER }}
+          path: .nextflow.log
+          if-no-files-found: ignore
+
+  nf-test:
+    name: nf-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v2
+        with:
+          version: '26.04.4'
+
+      - uses: nf-core/setup-nf-test@v1
+        with:
+          version: '0.9.3'
+
+      - name: nf-test
+        run: nf-test test --profile test,docker --verbose

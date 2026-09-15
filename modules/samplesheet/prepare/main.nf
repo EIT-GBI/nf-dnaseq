@@ -3,8 +3,6 @@
 process PREPARE_SAMPLESHEET {
     tag "${input_dir}"
 
-    publishDir "${params.outdir}/samplesheet", mode: 'copy'
-
     input:
     path pyscript
     path input_dir
