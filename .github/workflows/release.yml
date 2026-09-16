@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           # Elevated token (PAT or GitHub App) whose owner/app is on the
@@ -106,7 +106,7 @@ jobs:
           git push && git push --tags
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "v${{ steps.next.outputs.version }}"
           generate_release_notes: true

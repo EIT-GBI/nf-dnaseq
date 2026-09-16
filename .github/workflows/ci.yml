@@ -17,11 +17,11 @@ jobs:
     name: Lint (Nextflow strict syntax)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: nf-core/setup-nextflow@v2
+      - uses: nf-core/setup-nextflow@v3
         with:
           version: '26.04.4'
 
@@ -45,11 +45,11 @@ jobs:
         # The floor declared in manifest.nextflowVersion, and the latest 26.04 patch
         NXF_VER: ['26.04.4', '26.04.6']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: nf-core/setup-nextflow@v2
+      - uses: nf-core/setup-nextflow@v3
         with:
           version: ${{ matrix.NXF_VER }}
 
@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nextflow-log-${{ matrix.NXF_VER }}
           path: .nextflow.log
@@ -94,15 +94,15 @@ jobs:
     name: nf-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: nf-core/setup-nextflow@v2
+      - uses: nf-core/setup-nextflow@v3
         with:
           version: '26.04.4'
 
-      - uses: nf-core/setup-nf-test@v1
+      - uses: nf-core/setup-nf-test@v2
         with:
           version: '0.9.3'
 
