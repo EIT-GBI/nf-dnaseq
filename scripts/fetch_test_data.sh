@@ -33,26 +33,17 @@ for f in test_1.fastq.gz test_2.fastq.gz test2_1.fastq.gz test2_2.fastq.gz; do
     echo "  $f"
 done
 
-# Build the BWA index next to the reference, if we can. Pre-indexing keeps
-# BWA_INDEX out of the run entirely, so the CPU and GPU paths align against
-# byte-identical index files - which matters when comparing the two. It also
-# matches how production references are stored.
+# Index the reference if we can do it cheaply and locally. On a cluster the
+# login node usually has no container runtime, and `bwa index` wants roughly
+# 5.5x the genome size in RAM, so there we point at the batch job instead.
 #
-# Parabricks resolves --ref to its real path and looks for the index beside
-# that file, so having it here rather than in a work directory is the
-# arrangement it expects.
+# Pre-indexing matters: it puts the index beside the real reference, which is
+# where Parabricks looks for it, and lets the CPU and GPU paths align against
+# byte-identical index files.
 BWA_IMAGE='ghcr.io/eit-gbi/nf-mod-bwa:latest'
-CACHED_IMG='/mnt/lustre/containers/.staging/nf/cache/ghcr.io-eit-gbi-nf-mod-bwa-latest.img'
 
 if [ -e "$DEST/genome/genome.fasta.bwt" ]; then
     echo "BWA index already present, leaving it alone"
-elif command -v apptainer >/dev/null 2>&1; then
-    echo "Building the BWA index with apptainer"
-    if [ -f "$CACHED_IMG" ]; then IMG="$CACHED_IMG"; else IMG="docker://$BWA_IMAGE"; fi
-    apptainer exec "$IMG" bwa index "$DEST/genome/genome.fasta"
-elif command -v singularity >/dev/null 2>&1; then
-    echo "Building the BWA index with singularity"
-    singularity exec "docker://$BWA_IMAGE" bwa index "$DEST/genome/genome.fasta"
 elif command -v docker >/dev/null 2>&1; then
     echo "Building the BWA index with docker"
     docker run --rm -v "$(cd "$DEST/genome" && pwd):/ref" -w /ref "$BWA_IMAGE" bwa index genome.fasta
@@ -60,8 +51,12 @@ elif command -v bwa >/dev/null 2>&1; then
     echo "Building the BWA index with the bwa on PATH"
     bwa index "$DEST/genome/genome.fasta"
 else
-    echo "No container runtime or bwa found; skipping the index." >&2
-    echo "The pipeline will build one itself via BWA_INDEX." >&2
+    echo
+    echo "No local way to build the BWA index here (this is normal on a login node)."
+    echo "Submit it to a compute node instead:"
+    echo
+    echo "    sbatch scripts/index_reference.sbatch $DEST/genome/genome.fasta"
+    echo
 fi
 
 # Absolute paths: Nextflow resolves samplesheet entries relative to the launch
