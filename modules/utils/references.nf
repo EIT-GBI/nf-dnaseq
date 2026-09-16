@@ -38,7 +38,12 @@ def bwaIndexFor(reference_dir, reference) {
     )
 }
 
-// tuple(fasta, fai) for a reference
+// True when a samtools .fai already sits next to the fasta
+def faidxExists(reference_dir, reference) {
+    file("${refUri(reference_dir, reference)}.fai").exists()
+}
+
+// tuple(fasta, fai) for a reference that already has a .fai
 def faidxFor(reference_dir, reference) {
     def uri = refUri(reference_dir, reference)
     tuple(

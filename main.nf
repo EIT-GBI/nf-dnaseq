@@ -13,6 +13,7 @@ include {FASTQC_FASTQC} from './modules/fastqc/fastqc/main.nf'
 include {BWA_INDEX} from './modules/bwa/index/main.nf'
 include {BWA_MEM} from './modules/bwa/mem/main.nf'
 include {SAMTOOLS_INDEX} from './modules/samtools/index/main.nf'
+include {SAMTOOLS_FAIDX} from './modules/samtools/faidx/main.nf'
 include {SAMTOOLS_FLAGSTAT} from './modules/samtools/flagstat/main.nf'
 include {PARABRICKS_FQ2BAM} from './modules/parabricks/fq2bam/main.nf'
 include {PARABRICKS_DEEPVARIANT} from './modules/parabricks/deepvariant/main.nf'
@@ -22,7 +23,7 @@ include {BCFTOOLS_CONSENSUS} from './modules/bcftools/consensus/main.nf'
 include {BCFTOOLS_CALL} from './modules/bcftools/call/main.nf'
 include {BCFTOOLS_CSV} from './modules/bcftools/csv/main.nf'
 include {BCFTOOLS_VCF} from './modules/bcftools/vcf/main.nf'
-include {refFasta; bwaIndexFor; bwaIndexExists; faidxFor} from './modules/utils/references.nf'
+include {refFasta; bwaIndexFor; bwaIndexExists; faidxFor; faidxExists} from './modules/utils/references.nf'
 
 
 workflow {
@@ -85,24 +86,40 @@ workflow {
                     file(row.R2, checkIfExists: true))
        }
 
-    // Make sure every reference in the samplesheet is bwa-indexed: reuse an
-    // existing index where one sits next to the fasta, otherwise build it once
-    // per reference.
-    ref_branch = reads_ch
+    // Every distinct reference the samplesheet asks for
+    ref_ch = reads_ch
         .map { meta, _r1, _r2 -> meta.reference }
         .unique()
-        .branch { reference ->
-            ready:   bwaIndexExists(reference_dir, reference)
-            missing: true
-        }
 
-    BWA_INDEX(ref_branch.missing.map { reference -> refFasta(reference_dir, reference) })
+    // Index each reference if it is not already: reuse what sits next to the
+    // fasta, otherwise build it once per reference. Both indexes are handled
+    // the same way, so a bare .fasta is enough to run the pipeline.
+    bwa_branch = ref_ch.branch { reference ->
+        ready:   bwaIndexExists(reference_dir, reference)
+        missing: true
+    }
+    BWA_INDEX(bwa_branch.missing.map { reference -> refFasta(reference_dir, reference) })
 
     // tuple(fasta name, tuple(fasta, index files)) - keyed so samples can join it
-    bwa_index_ch = ref_branch.ready
+    bwa_index_ch = bwa_branch.ready
         .map { reference -> bwaIndexFor(reference_dir, reference) }
         .mix(BWA_INDEX.out.index)
         .map { fasta, index_files -> tuple(fasta.name, tuple(fasta, index_files)) }
+
+    // The .fai is needed by coverage and by every variant caller
+    fai_branch = ref_ch.branch { reference ->
+        ready:   faidxExists(reference_dir, reference)
+        missing: true
+    }
+    SAMTOOLS_FAIDX(
+        fai_branch.missing.map { reference -> tuple([id: reference], refFasta(reference_dir, reference)) }
+    )
+
+    // tuple(fasta name, tuple(fasta, fai))
+    faidx_ch = fai_branch.ready
+        .map { reference -> faidxFor(reference_dir, reference) }
+        .mix(SAMTOOLS_FAIDX.out.fai.map { meta, fai -> tuple(refFasta(reference_dir, meta.id), fai) })
+        .map { fasta, fai -> tuple(fasta.name, tuple(fasta, fai)) }
 
     // Trim the reads
     if (params.trimmer == 'fastp') {
@@ -120,10 +137,18 @@ workflow {
     // QC on the trimmed reads
     FASTQC_FASTQC(trimmed_ch)
 
-    // Pair every sample with the index for its own reference
+    // One bundle per reference: the fasta with every sibling index file. The
+    // aligners stage them together, which matters for Parabricks - it resolves
+    // --ref to a real path and expects the whole index beside it, the .fai
+    // included.
+    ref_bundle_ch = bwa_index_ch
+        .combine(faidx_ch, by: 0)
+        .map { key, bwa, faidx -> tuple(key, tuple(bwa[0], bwa[1] + [faidx[1]])) }
+
+    // Pair every sample with the reference bundle for its own reference
     aln_in = trimmed_ch
         .map { meta, r1, r2 -> tuple(refFasta(reference_dir, meta.reference).name, meta, r1, r2) }
-        .combine(bwa_index_ch, by: 0)
+        .combine(ref_bundle_ch, by: 0)
         .multiMap { _key, meta, r1, r2, index ->
             reads: tuple(meta, r1, r2)
             index: index
@@ -144,19 +169,25 @@ workflow {
     SAMTOOLS_FLAGSTAT(bam_ch.map { meta, bam, _bai -> tuple(meta, bam) })
 
     // Create bigwig files
-    bigwig_in = bam_ch.multiMap { meta, bam, bai ->
-        reads: tuple(meta, bam, bai)
-        fasta: faidxFor(reference_dir, meta.reference)
-    }
+    bigwig_in = bam_ch
+        .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+        .combine(faidx_ch, by: 0)
+        .multiMap { _key, meta, bam, bai, faidx ->
+            reads: tuple(meta, bam, bai)
+            fasta: faidx
+        }
     BEDTOOLS_BIGWIG(bigwig_in.reads, bigwig_in.fasta)  
 
     // Varian calling
     // bcftools
     if ('bcftools' in callers) {
-        bcf_in = bam_ch.multiMap { meta, bam, bai ->
-            bam: tuple(meta, bam, bai)
-            faidx: faidxFor(reference_dir, meta.reference)
-        }
+        bcf_in = bam_ch
+            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .combine(faidx_ch, by: 0)
+            .multiMap { _key, meta, bam, bai, faidx ->
+                bam: tuple(meta, bam, bai)
+                faidx: faidx
+            }
         BCFTOOLS_CALL(bcf_in.bam, bcf_in.faidx)
         BCFTOOLS_VCF(BCFTOOLS_CALL.out.bcf)
         BCFTOOLS_CSV(BCFTOOLS_CALL.out.bcf)
@@ -164,30 +195,39 @@ workflow {
         ch_vcf = BCFTOOLS_VCF.out.vcf
         ch_csv = BCFTOOLS_CSV.out.csv
         
-        cons_in = BCFTOOLS_CALL.out.bcf.multiMap { meta, bcf, csi ->
-            bcf:   tuple(meta, bcf, csi)
-            faidx: faidxFor(reference_dir, meta.reference)
-        }
+        cons_in = BCFTOOLS_CALL.out.bcf
+            .map { meta, bcf, csi -> tuple(refFasta(reference_dir, meta.reference).name, meta, bcf, csi) }
+            .combine(faidx_ch, by: 0)
+            .multiMap { _key, meta, bcf, csi, faidx ->
+                bcf:   tuple(meta, bcf, csi)
+                faidx: faidx
+            }
         BCFTOOLS_CONSENSUS(cons_in.bcf, cons_in.faidx)
         ch_consensus = BCFTOOLS_CONSENSUS.out.consensus
     }
 
     // deepvariant
     if ('deepvariant' in callers) {
-        dv_in = bam_ch.multiMap { meta, bam, bai ->
-            bam: tuple(meta, bam, bai)
-            faidx: faidxFor(reference_dir, meta.reference)
-        }
+        dv_in = bam_ch
+            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .combine(faidx_ch, by: 0)
+            .multiMap { _key, meta, bam, bai, faidx ->
+                bam: tuple(meta, bam, bai)
+                faidx: faidx
+            }
         PARABRICKS_DEEPVARIANT(dv_in.bam, dv_in.faidx)
         ch_dv_vcf = PARABRICKS_DEEPVARIANT.out.vcf
     }
 
     // mutect2
     if ('mutect2' in callers || 'mutect' in callers) {  
-        mt_in = bam_ch.multiMap { meta, bam, bai ->
-            bam: tuple(meta, bam, bai)
-            faidx: faidxFor(reference_dir, meta.reference)
-        }
+        mt_in = bam_ch
+            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .combine(faidx_ch, by: 0)
+            .multiMap { _key, meta, bam, bai, faidx ->
+                bam: tuple(meta, bam, bai)
+                faidx: faidx
+            }
         PARABRICKS_MUTECTCALLER(mt_in.bam, mt_in.faidx)
         ch_mutect_vcf = PARABRICKS_MUTECTCALLER.out.vcf
     }
