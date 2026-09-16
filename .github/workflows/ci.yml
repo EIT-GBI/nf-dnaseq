@@ -28,6 +28,14 @@ jobs:
       - name: nextflow lint
         run: nextflow lint -o concise .
 
+      - name: No unpinned container images
+        # Every process must resolve to a specific image version. Guards against
+        # :latest creeping back in, which would make a given pipeline revision
+        # silently pick up different software over time.
+        run: |
+          nextflow inspect main.nf -profile test 2>/dev/null \
+            | python3 .github/scripts/check_containers.py
+
   test:
     name: Run pipeline (Nextflow ${{ matrix.NXF_VER }})
     runs-on: ubuntu-latest
@@ -46,7 +54,7 @@ jobs:
           version: ${{ matrix.NXF_VER }}
 
       - name: End-to-end run (CPU path, bcftools)
-        run: nextflow run . -profile test,docker --outdir results_ci
+        run: nextflow run . -profile test,dev,docker --outdir results_ci
 
       - name: Check the published layout
         run: |
@@ -67,7 +75,7 @@ jobs:
 
       - name: GPU path (stub - no GPU available in CI)
         run: |
-          nextflow run . -profile test -stub-run \
+          nextflow run . -profile test,dev -stub-run \
             --alignment.device gpu \
             --variant_callers bcftools,deepvariant,mutect2 \
             --outdir results_gpu_stub
@@ -99,4 +107,4 @@ jobs:
           version: '0.9.3'
 
       - name: nf-test
-        run: nf-test test --profile test,docker --verbose
+        run: nf-test test --profile test,dev,docker --verbose
