@@ -10,10 +10,20 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  # Manual fallback: lets a release be cut without a merge, e.g. if the
+  # label-driven run is ever missed or has to be retried.
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump to apply'
+        required: true
+        type: choice
+        options: [patch, minor, major]
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    # Merged PRs only (not merely closed); manual runs always proceed.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,9 +36,13 @@ jobs:
           # bypass rulesets, so pushing the bump commit to main needs this.
           token: ${{ secrets.NF_ORG_PAT }}
 
-      - name: Determine bump type from labels
+      - name: Determine bump type
         id: bump
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
           if echo "$LABELS" | grep -q "bump:major"; then
             echo "type=major" >> $GITHUB_OUTPUT
@@ -37,8 +51,11 @@ jobs:
           elif echo "$LABELS" | grep -q "bump:patch"; then
             echo "type=patch" >> $GITHUB_OUTPUT
           else
-            echo "No bump label found, skipping release"
-            exit 0
+            # Fail loudly rather than exit 0: a bare `exit 0` only ends this
+            # step, so the job would carry on with an empty bump type and
+            # re-tag the current version.
+            echo "::error::No bump label on the merged PR; cannot determine a version bump."
+            exit 1
           fi
 
       - name: Get current version
