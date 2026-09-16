@@ -73,6 +73,33 @@ jobs:
           fi
           echo "Published layout OK"
 
+      - name: Samplesheet generated from a FASTQ directory
+        # The README's "Option A" route, which -profile test does not cover
+        # because it supplies a samplesheet directly. Runs PREPARE_SAMPLESHEET
+        # for real, then stubs the rest.
+        run: |
+          set -euo pipefail
+          BASE='https://raw.githubusercontent.com/nf-core/test-datasets/modules/data/genomics/sarscov2'
+          # the _R1/_R2 naming is what generate_samplesheet.py pairs on
+          mkdir -p ci_fastq ci_ref
+          curl -fsSL "$BASE/illumina/fastq/test_1.fastq.gz"  -o ci_fastq/S1_R1.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test_2.fastq.gz"  -o ci_fastq/S1_R2.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test2_1.fastq.gz" -o ci_fastq/S2_R1.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test2_2.fastq.gz" -o ci_fastq/S2_R2.fastq.gz
+          curl -fsSL "$BASE/genome/genome.fasta"     -o ci_ref/genome.fasta
+          curl -fsSL "$BASE/genome/genome.fasta.fai" -o ci_ref/genome.fasta.fai
+          nextflow run . -profile dev -stub-run \
+            --fastq_dir "$PWD/ci_fastq" \
+            --reference_genome genome.fasta \
+            --reference_dir "$PWD/ci_ref" \
+            --variant_callers bcftools \
+            --outdir results_samplesheet
+          # an empty stub here used to make splitCsv throw; assert real rows
+          test -s results_samplesheet/samplesheet/samplesheet.csv
+          grep -q '^sample,R1,R2,reference$' results_samplesheet/samplesheet/samplesheet.csv
+          test "$(tail -n +2 results_samplesheet/samplesheet/samplesheet.csv | wc -l)" -eq 2
+          test -d results_samplesheet/alignment
+
       - name: GPU path (stub - no GPU available in CI)
         run: |
           nextflow run . -profile test,dev -stub-run \
