@@ -60,6 +60,14 @@ git clone --recursive https://github.com/EIT-GBI/nf-dnaseq.git
 git submodule update --init --recursive
 ```
 
+> **Pulling later?** `git pull` moves this repo's *pointer* to each module but
+> does not move the module itself, so you can end up running old module code
+> against a new pipeline — with no error to tell you. Always follow a pull with:
+>
+> ```bash
+> git submodule update --init --recursive
+> ```
+
 ### Quick check that everything works
 
 A small end-to-end run on a public test dataset (a ~30 KB SARS-CoV-2 genome and
@@ -334,6 +342,7 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 | Symptom | Likely cause / fix |
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
+| A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
 | GitHub `403` on `git submodule update` | Private repo; use a PAT with `repo` scope, authorize for SSO |
 | `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
 
