@@ -181,6 +181,19 @@ SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta
 
 `reference` is a path **relative to `reference_dir`** (see below).
 
+An optional `platform` column sets the sequencing platform recorded as `PL` in
+each BAM's read group, so one run can mix platforms:
+
+```csv
+sample,R1,R2,reference,platform
+SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta,OXFORD_NANOPORE
+SAMPLE_B,/abs/path/B_R1.fastq.gz,/abs/path/B_R2.fastq.gz,mouse/genome.fasta,
+```
+
+Where a row leaves it blank, or the column is absent, `--platform` applies; with
+neither set the aligners record `ILLUMINA`. This works the same on the CPU and
+GPU paths.
+
 ### Reference genome layout
 
 References live under `reference_dir`, and `reference_genome` is the path **relative** to it. For example, with:
@@ -216,6 +229,7 @@ These live in `params.cluster.yaml`:
 | `outdir` | Where published results go |
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
+| `platform` | Sequencing platform recorded as `PL` in the BAM read group, for samples whose samplesheet row does not set one. Unset records `ILLUMINA` |
 | `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
 | `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |

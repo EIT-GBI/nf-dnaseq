@@ -24,7 +24,6 @@ trimmer: 'fastp'
 
 # Alignment
 alignment:
-  threads: 4
   device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
 
 # Variant calling: any of bcftools, deepvariant, mutect2

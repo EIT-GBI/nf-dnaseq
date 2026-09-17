@@ -81,10 +81,21 @@ workflow {
     // Parse each row, splitting it into reads and reference channels
     reads_ch = samplesheet_ch
         .splitCsv(header: true)
-        .map { row ->tuple([id: row.sample, reference: row.reference], 
-                    file(row.R1, checkIfExists: true), 
-                    file(row.R2, checkIfExists: true))
-       }
+        .map { row ->
+            // Sequencing platform, which reaches the aligners' @RG read group
+            // as PL. The samplesheet's optional `platform` column wins, since
+            // one run can mix platforms; params.platform is the run-wide
+            // fallback, and covers the --fastq_dir route, whose generated
+            // samplesheet has no such column. With neither set the aligners
+            // default to ILLUMINA, so existing samplesheets keep working.
+            def meta = [id: row.sample, reference: row.reference]
+            def platform = row.platform ?: params.platform
+            if( platform )
+                meta.platform = platform
+            tuple(meta,
+                  file(row.R1, checkIfExists: true),
+                  file(row.R2, checkIfExists: true))
+        }
 
     // Every distinct reference the samplesheet asks for
     ref_ch = reads_ch
