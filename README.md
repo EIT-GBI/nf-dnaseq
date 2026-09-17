@@ -215,7 +215,9 @@ These live in `params.cluster.yaml`:
 | `reference_dir` | Root directory holding reference genomes + indexes |
 | `outdir` | Where published results go |
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
+| `alignment.platform`, `alignment.min_seed_length`, `alignment.min_score`, `alignment.index_algorithm` | bwa settings (owned by the bwa module); unset uses bwa's defaults, platform defaults to `ILLUMINA` |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
+| `trimming.min_base_quality`, `trimming.min_read_length` | fastp thresholds (owned by the fastp module); unset uses fastp's defaults |
 | `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
 | `calling.min_mapq`, `calling.min_qual`, `calling.min_depth`, `calling.ploidy` | bcftools calling/filtering thresholds (owned by the bcftools module) |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |

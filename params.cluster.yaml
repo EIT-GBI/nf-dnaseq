@@ -24,8 +24,11 @@ trimmer: 'fastp'
 
 # Alignment
 alignment:
-  threads: 4
   device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
+  # The bwa module owns these; unset means bwa's own defaults (platform ILLUMINA)
+  # platform: 'ILLUMINA'
+  # min_seed_length: 19
+  # min_score: 30
 
 # Variant calling: any of bcftools, deepvariant, mutect2
 variant_callers:
