@@ -24,11 +24,8 @@ trimmer: 'fastp'
 
 # Alignment
 alignment:
+  threads: 4
   device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
-  # The bwa module owns these; unset means bwa's own defaults (platform ILLUMINA)
-  # platform: 'ILLUMINA'
-  # min_seed_length: 19
-  # min_score: 30
 
 # Variant calling: any of bcftools, deepvariant, mutect2
 variant_callers:
@@ -36,12 +33,11 @@ variant_callers:
   - deepvariant
 #  - mutect2
 
-# Variant calling and filtering thresholds (owned by the bcftools module)
-calling:
-  min_mapq: 20
-  min_qual: 20
-  ploidy: 1
-  min_depth: 10
+# Variant filtering thresholds
+min_mapq: 20
+min_qual: 20
+ploidy: 1
+min_depth: 10
 
 # Directory holding the UCSC binaries (bedGraphToBigWig), for -profile local.
 # Leave null when the bedtools container provides them.

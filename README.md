@@ -215,11 +215,9 @@ These live in `params.cluster.yaml`:
 | `reference_dir` | Root directory holding reference genomes + indexes |
 | `outdir` | Where published results go |
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
-| `alignment.platform`, `alignment.min_seed_length`, `alignment.min_score`, `alignment.index_algorithm` | bwa settings (owned by the bwa module); unset uses bwa's defaults, platform defaults to `ILLUMINA` |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
-| `trimming.min_base_quality`, `trimming.min_read_length` | fastp thresholds (owned by the fastp module); unset uses fastp's defaults |
 | `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
-| `calling.min_mapq`, `calling.min_qual`, `calling.min_depth`, `calling.ploidy` | bcftools calling/filtering thresholds (owned by the bcftools module) |
+| `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |
 
 Example `variant_callers` block (YAML list — comment/uncomment to choose):
@@ -271,7 +269,7 @@ Change calling thresholds on the fly:
 
 ```bash
 nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
-  --calling.min_depth 20 --calling.min_qual 30 -resume
+  --min_depth 20 --min_qual 30 -resume
 ```
 
 Choose variant callers from the command line (comma-separated, **no spaces**):
