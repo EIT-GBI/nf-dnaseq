@@ -43,6 +43,15 @@ workflow {
         error "You must set params.reference_dir: the directory holding the reference genomes."
     }
 
+    // Variant calling is optional. Accepts a real boolean from a -params-file,
+    // and the 'true'/'false' string Nextflow hands over for
+    // --skip_variant_calling on the command line.
+    def skip_calling_value = "${params.skip_variant_calling}".toLowerCase()
+    if (!(skip_calling_value in ['true', 'false'])) {
+        error "Invalid value for params.skip_variant_calling: ${params.skip_variant_calling}. Use true or false."
+    }
+    def skip_variant_calling = (skip_calling_value == 'true')
+
     // Check if a samplesheet is provided, otherwise build one from the fastq directory and reference genome
     if (params.samplesheet) {
         samplesheet_ch = channel.fromPath(params.samplesheet, checkIfExists: true)
@@ -59,10 +68,19 @@ workflow {
         error "You must provide either a samplesheet or a fastq directory and reference genome."
     }
 
-    // Parse the variant callers parameter into a list
-    def callers = (params.variant_callers instanceof List)
-        ? params.variant_callers
-        : "${params.variant_callers}".tokenize(',')*.trim()
+    // Parse the variant callers parameter into a list. skip_variant_calling
+    // empties it, which switches off every `if (... in callers)` branch below
+    // in one go. The bcftools consensus goes with them: it is built from the
+    // calls, so there is nothing to build a consensus from.
+    def callers = []
+    if (skip_variant_calling) {
+        log.info "Variant calling is off (params.skip_variant_calling = true): no BCF, VCF, CSV or consensus output."
+    }
+    else {
+        callers = (params.variant_callers instanceof List)
+            ? params.variant_callers
+            : "${params.variant_callers}".tokenize(',')*.trim()
+    }
 
     def reference_dir = params.reference_dir
 
@@ -189,7 +207,7 @@ workflow {
         }
     BEDTOOLS_BIGWIG(bigwig_in.reads, bigwig_in.fasta)  
 
-    // Varian calling
+    // Variant calling
     // bcftools
     if ('bcftools' in callers) {
         bcf_in = bam_ch

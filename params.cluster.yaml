@@ -26,7 +26,13 @@ trimmer: 'fastp'
 alignment:
   device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
 
+# Set to true to skip variant calling altogether: no BCF, VCF, CSV or
+# consensus output, whatever variant_callers says below. Use it when you only
+# want trimming, QC, alignment and coverage tracks.
+skip_variant_calling: false
+
 # Variant calling: any of bcftools, deepvariant, mutect2
+# Ignored when skip_variant_calling is true.
 variant_callers:
   - bcftools
   - deepvariant

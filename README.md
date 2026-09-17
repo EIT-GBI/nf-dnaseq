@@ -23,7 +23,9 @@ flowchart TD
 
     H --> I[SAMTOOLS_FLAGSTAT<br/><i>alignment metrics</i>]
     H --> J[BEDTOOLS_BIGWIG<br/><i>coverage track</i>]
-    H --> K{variant_callers}
+    H --> S{skip_variant_calling}
+    S -->|true| T([stop after coverage])
+    S -->|false| K{variant_callers}
 
     K -->|bcftools| L[BCFTOOLS_CALL → VCF / CSV / CONSENSUS<br/><i>CPU</i>]
     K -->|deepvariant| M[PARABRICKS_DEEPVARIANT<br/><i>GPU</i>]
@@ -230,7 +232,8 @@ These live in `params.cluster.yaml`:
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
 | `platform` | Sequencing platform recorded as `PL` in the BAM read group, for samples whose samplesheet row does not set one. Unset records `ILLUMINA` |
-| `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
+| `skip_variant_calling` | `true` to skip variant calling entirely (no BCF/VCF/CSV/consensus); `false` (default) to run it |
+| `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2`. Ignored when `skip_variant_calling` is `true` |
 | `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |
 
@@ -242,6 +245,16 @@ variant_callers:
   - deepvariant
 #  - mutect2
 ```
+
+To skip variant calling altogether, leave `variant_callers` as it is and set:
+
+```yaml
+skip_variant_calling: true
+```
+
+The run then stops after coverage: trimming, FastQC, alignment, flagstat and
+bigwig still happen, and `variants/` and `consensus/` are simply not produced.
+The consensus goes with the callers because it is built from the bcftools calls.
 
 ---
 
@@ -293,10 +306,18 @@ nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
   --variant_callers bcftools,deepvariant,mutect2 -resume
 ```
 
+Skip variant calling for one run, without editing the params file:
+
+```bash
+nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
+  --skip_variant_calling true -resume
+```
+
 **Gotchas:**
 - Nested params use dotted notation: `--alignment.device gpu` (not `--device`, which is unused).
 - List params (`variant_callers`) must be a **comma-separated string** on the CLI — the pipeline splits it. You **cannot** repeat `--variant_callers` to add items; the last one wins.
 - Scalars (numbers, strings, `cpu`/`gpu`) work directly on the CLI.
+- Boolean params need an explicit value: `--skip_variant_calling true`, not a bare `--skip_variant_calling`.
 
 ---
 

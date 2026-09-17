@@ -72,4 +72,37 @@ nextflow_pipeline {
             assert workflow.trace.tasks().every { !it.name.startsWith('SAMTOOLS_INDEX') }
         }
     }
+
+    test("skip_variant_calling drops the calling stage but keeps the rest") {
+
+        options "-stub-run -output-dir $outputDir"
+
+        when {
+            params {
+                outdir               = "$outputDir"
+                skip_variant_calling = true
+                // Left deliberately non-empty: the switch must win over it
+                variant_callers      = 'bcftools,deepvariant,mutect2'
+            }
+        }
+
+        then {
+            assert workflow.success
+
+            def names = { sub -> (new File("$outputDir/$sub").list() ?: []) as List }
+
+            // Everything up to and including coverage still runs
+            assert names('').containsAll(['alignment', 'bigwig', 'qc', 'trimmed'])
+
+            // ...and nothing downstream of the callers is published. The
+            // consensus goes too: it is built from the bcftools calls.
+            assert !names('').contains('variants')
+            assert !names('').contains('consensus')
+
+            // No caller process was even scheduled
+            assert workflow.trace.tasks().every { !it.name.startsWith('BCFTOOLS_') }
+            assert workflow.trace.tasks().every { !it.name.startsWith('PARABRICKS_DEEPVARIANT') }
+            assert workflow.trace.tasks().every { !it.name.startsWith('PARABRICKS_MUTECTCALLER') }
+        }
+    }
 }
