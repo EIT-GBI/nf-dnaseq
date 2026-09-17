@@ -33,11 +33,12 @@ variant_callers:
   - deepvariant
 #  - mutect2
 
-# Variant filtering thresholds
-min_mapq: 20
-min_qual: 20
-ploidy: 1
-min_depth: 10
+# Variant calling and filtering thresholds (owned by the bcftools module)
+calling:
+  min_mapq: 20
+  min_qual: 20
+  ploidy: 1
+  min_depth: 10
 
 # Directory holding the UCSC binaries (bedGraphToBigWig), for -profile local.
 # Leave null when the bedtools container provides them.

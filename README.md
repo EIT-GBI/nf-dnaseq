@@ -217,7 +217,7 @@ These live in `params.cluster.yaml`:
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
 | `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
-| `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
+| `calling.min_mapq`, `calling.min_qual`, `calling.min_depth`, `calling.ploidy` | bcftools calling/filtering thresholds (owned by the bcftools module) |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |
 
 Example `variant_callers` block (YAML list — comment/uncomment to choose):
@@ -269,7 +269,7 @@ Change calling thresholds on the fly:
 
 ```bash
 nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
-  --min_depth 20 --min_qual 30 -resume
+  --calling.min_depth 20 --calling.min_qual 30 -resume
 ```
 
 Choose variant callers from the command line (comma-separated, **no spaces**):
