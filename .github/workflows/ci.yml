@@ -54,7 +54,7 @@ jobs:
           version: ${{ matrix.NXF_VER }}
 
       - name: End-to-end run (CPU path, bcftools)
-        run: nextflow run . -profile test,dev,docker --outdir results_ci
+        run: nextflow run . -profile test,docker --outdir results_ci
 
       - name: Check the published layout
         run: |
@@ -88,7 +88,7 @@ jobs:
           curl -fsSL "$BASE/illumina/fastq/test2_2.fastq.gz" -o ci_fastq/S2_R2.fastq.gz
           curl -fsSL "$BASE/genome/genome.fasta"     -o ci_ref/genome.fasta
           curl -fsSL "$BASE/genome/genome.fasta.fai" -o ci_ref/genome.fasta.fai
-          nextflow run . -profile dev -stub-run \
+          nextflow run . -stub-run \
             --fastq_dir "$PWD/ci_fastq" \
             --reference_genome genome.fasta \
             --reference_dir "$PWD/ci_ref" \
@@ -102,7 +102,7 @@ jobs:
 
       - name: GPU path (stub - no GPU available in CI)
         run: |
-          nextflow run . -profile test,dev -stub-run \
+          nextflow run . -profile test -stub-run \
             --alignment.device gpu \
             --variant_callers bcftools,deepvariant,mutect2 \
             --outdir results_gpu_stub
@@ -134,4 +134,4 @@ jobs:
           version: '0.9.3'
 
       - name: nf-test
-        run: nf-test test --profile test,dev,docker --verbose
+        run: nf-test test --profile test,docker --verbose
