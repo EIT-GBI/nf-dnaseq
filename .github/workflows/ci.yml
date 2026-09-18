@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (Nextflow strict syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v3
+        with:
+          version: '26.04.4'
+
+      - name: nextflow lint
+        run: nextflow lint -o concise .
+
+      - name: No unpinned container images
+        # Every process must resolve to a specific image version. Guards against
+        # :latest creeping back in, which would make a given pipeline revision
+        # silently pick up different software over time.
+        run: |
+          nextflow inspect main.nf -profile test 2>/dev/null \
+            | python3 .github/scripts/check_containers.py
+
+  test:
+    name: Run pipeline (Nextflow ${{ matrix.NXF_VER }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in manifest.nextflowVersion, and the latest 26.04 patch
+        NXF_VER: ['26.04.4', '26.04.6']
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v3
+        with:
+          version: ${{ matrix.NXF_VER }}
+
+      - name: End-to-end run (CPU path, bcftools)
+        run: nextflow run . -profile test,docker --outdir results_ci
+
+      - name: Check the published layout
+        run: |
+          set -euo pipefail
+          for d in alignment bigwig consensus qc/fastqc qc/flagstat trimmed \
+                   variants/bcf variants/vcf variants/csv; do
+            if [ ! -d "results_ci/$d" ]; then
+              echo "::error::expected published directory missing: $d"
+              exit 1
+            fi
+          done
+          # publishDir must not have crept back in alongside the output block
+          if grep -rn "publishDir" --include='*.nf' .; then
+            echo "::error::publishDir found; publishing belongs in the output block in main.nf"
+            exit 1
+          fi
+          echo "Published layout OK"
+
+      - name: Samplesheet generated from a FASTQ directory
+        # The README's "Option A" route, which -profile test does not cover
+        # because it supplies a samplesheet directly. Runs PREPARE_SAMPLESHEET
+        # for real, then stubs the rest.
+        run: |
+          set -euo pipefail
+          BASE='https://raw.githubusercontent.com/nf-core/test-datasets/modules/data/genomics/sarscov2'
+          # the _R1/_R2 naming is what generate_samplesheet.py pairs on
+          mkdir -p ci_fastq ci_ref
+          curl -fsSL "$BASE/illumina/fastq/test_1.fastq.gz"  -o ci_fastq/S1_R1.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test_2.fastq.gz"  -o ci_fastq/S1_R2.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test2_1.fastq.gz" -o ci_fastq/S2_R1.fastq.gz
+          curl -fsSL "$BASE/illumina/fastq/test2_2.fastq.gz" -o ci_fastq/S2_R2.fastq.gz
+          curl -fsSL "$BASE/genome/genome.fasta"     -o ci_ref/genome.fasta
+          curl -fsSL "$BASE/genome/genome.fasta.fai" -o ci_ref/genome.fasta.fai
+          nextflow run . -stub-run \
+            --fastq_dir "$PWD/ci_fastq" \
+            --reference_genome genome.fasta \
+            --reference_dir "$PWD/ci_ref" \
+            --variant_callers bcftools \
+            --outdir results_samplesheet
+          # an empty stub here used to make splitCsv throw; assert real rows
+          test -s results_samplesheet/samplesheet/samplesheet.csv
+          grep -q '^sample,R1,R2,reference$' results_samplesheet/samplesheet/samplesheet.csv
+          test "$(tail -n +2 results_samplesheet/samplesheet/samplesheet.csv | wc -l)" -eq 2
+          test -d results_samplesheet/alignment
+
+      - name: GPU path (stub - no GPU available in CI)
+        run: |
+          nextflow run . -profile test -stub-run \
+            --alignment.device gpu \
+            --variant_callers bcftools,deepvariant,mutect2 \
+            --outdir results_gpu_stub
+          test -d results_gpu_stub/variants/deepvariant
+          test -d results_gpu_stub/variants/mutect
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: nextflow-log-${{ matrix.NXF_VER }}
+          path: .nextflow.log
+          if-no-files-found: ignore
+
+  nf-test:
+    name: nf-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: nf-core/setup-nextflow@v3
+        with:
+          version: '26.04.4'
+
+      - uses: nf-core/setup-nf-test@v2
+        with:
+          version: '0.9.3'
+
+      - name: nf-test
+        run: nf-test test --profile test,docker --verbose

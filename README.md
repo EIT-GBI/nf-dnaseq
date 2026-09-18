@@ -23,7 +23,9 @@ flowchart TD
 
     H --> I[SAMTOOLS_FLAGSTAT<br/><i>alignment metrics</i>]
     H --> J[BEDTOOLS_BIGWIG<br/><i>coverage track</i>]
-    H --> K{variant_callers}
+    H --> S{skip_variant_calling}
+    S -->|true| T([stop after coverage])
+    S -->|false| K{variant_callers}
 
     K -->|bcftools| L[BCFTOOLS_CALL → VCF / CSV / CONSENSUS<br/><i>CPU</i>]
     K -->|deepvariant| M[PARABRICKS_DEEPVARIANT<br/><i>GPU</i>]
@@ -42,6 +44,42 @@ flowchart TD
 
 ---
 
+
+## Requirements
+
+- **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
+  aborts on anything older). To use a specific version without installing it
+  system-wide: `NXF_VER=26.04.6 nextflow run ...`
+- A container engine: Docker (`-profile docker`) or Apptainer (`-profile cluster`).
+
+If you clone the repo rather than letting Nextflow fetch it, the modules are git
+submodules, so clone recursively — a plain clone leaves `modules/` empty and every
+`include` fails:
+
+```bash
+git clone --recursive https://github.com/EIT-GBI/nf-dnaseq.git
+# already cloned?
+git submodule update --init --recursive
+```
+
+> **Pulling later?** `git pull` moves this repo's *pointer* to each module but
+> does not move the module itself, so you can end up running old module code
+> against a new pipeline — with no error to tell you. Always follow a pull with:
+>
+> ```bash
+> git submodule update --init --recursive
+> ```
+
+### Quick check that everything works
+
+A small end-to-end run on a public test dataset (a ~30 KB SARS-CoV-2 genome and
+two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
+
+```bash
+nextflow run . -profile test,docker
+```
+
+---
 
 ## TLDR: Run it on the cluster
 
@@ -145,6 +183,19 @@ SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta
 
 `reference` is a path **relative to `reference_dir`** (see below).
 
+An optional `platform` column sets the sequencing platform recorded as `PL` in
+each BAM's read group, so one run can mix platforms:
+
+```csv
+sample,R1,R2,reference,platform
+SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta,OXFORD_NANOPORE
+SAMPLE_B,/abs/path/B_R1.fastq.gz,/abs/path/B_R2.fastq.gz,mouse/genome.fasta,
+```
+
+Where a row leaves it blank, or the column is absent, `--platform` applies; with
+neither set the aligners record `ILLUMINA`. This works the same on the CPU and
+GPU paths.
+
 ### Reference genome layout
 
 References live under `reference_dir`, and `reference_genome` is the path **relative** to it. For example, with:
@@ -180,7 +231,9 @@ These live in `params.cluster.yaml`:
 | `outdir` | Where published results go |
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
-| `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2` |
+| `platform` | Sequencing platform recorded as `PL` in the BAM read group, for samples whose samplesheet row does not set one. Unset records `ILLUMINA` |
+| `skip_variant_calling` | `true` to skip variant calling entirely (no BCF/VCF/CSV/consensus); `false` (default) to run it |
+| `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2`. Ignored when `skip_variant_calling` is `true` |
 | `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |
 
@@ -192,6 +245,16 @@ variant_callers:
   - deepvariant
 #  - mutect2
 ```
+
+To skip variant calling altogether, leave `variant_callers` as it is and set:
+
+```yaml
+skip_variant_calling: true
+```
+
+The run then stops after coverage: trimming, FastQC, alignment, flagstat and
+bigwig still happen, and `variants/` and `consensus/` are simply not produced.
+The consensus goes with the callers because it is built from the bcftools calls.
 
 ---
 
@@ -218,7 +281,7 @@ flowchart TD
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
 
-> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-recoded-alignment.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
 
 ### Examples
 
@@ -243,10 +306,18 @@ nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
   --variant_callers bcftools,deepvariant,mutect2 -resume
 ```
 
+Skip variant calling for one run, without editing the params file:
+
+```bash
+nextflow run main.nf -params-file params.cluster.yaml -profile cluster \
+  --skip_variant_calling true -resume
+```
+
 **Gotchas:**
 - Nested params use dotted notation: `--alignment.device gpu` (not `--device`, which is unused).
 - List params (`variant_callers`) must be a **comma-separated string** on the CLI — the pipeline splits it. You **cannot** repeat `--variant_callers` to add items; the last one wins.
 - Scalars (numbers, strings, `cpu`/`gpu`) work directly on the CLI.
+- Boolean params need an explicit value: `--skip_variant_calling true`, not a bare `--skip_variant_calling`.
 
 ---
 
@@ -256,19 +327,31 @@ Results are published under `outdir`:
 
 ```
 outdir/
-├── samplesheet/          # generated samplesheet.csv
-├── trimmed/              # fastp reports (html/json)
+├── samplesheet/          # generated samplesheet.csv (only when the pipeline built one)
+├── trimmed/              # fastp reports (html/json) - not the trimmed FASTQs
 ├── qc/
 │   ├── fastqc/           # FastQC reports
 │   └── flagstat/         # samtools flagstat metrics
-├── alignment/            # sorted BAM + index
+├── alignment/            # sorted BAM + index (+ duplicate metrics on the GPU path)
 ├── bigwig/               # coverage tracks (.bw)
+├── consensus/            # consensus FASTA
 └── variants/
     ├── bcf/  vcf/  csv/   # bcftools outputs
-    ├── consensus/         # consensus FASTA
     ├── deepvariant/       # DeepVariant VCFs (GPU)
     └── mutect/            # Mutect2 VCFs (GPU)
 ```
+
+Publishing is defined by the `output {}` block at the bottom of `main.nf`, not by
+`publishDir` directives inside the modules. That means the modules stay reusable
+across pipelines, and the whole results tree can be relocated from the command
+line without touching any config:
+
+```bash
+nextflow run . -profile cluster -params-file params.cluster.yaml -output-dir /path/to/results
+```
+
+`--outdir` still works and remains the documented knob; `-output-dir` (or `-o`)
+overrides it.
 
 ---
 
@@ -294,6 +377,7 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 | Symptom | Likely cause / fix |
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
+| A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
 | GitHub `403` on `git submodule update` | Private repo; use a PAT with `repo` scope, authorize for SSO |
 | `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
 

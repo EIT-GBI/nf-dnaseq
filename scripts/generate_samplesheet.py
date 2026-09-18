@@ -85,7 +85,6 @@ def main():
             'R2': reads['R2'],
             'reference': args.reference
         })
-    print(rows)
     if not rows:
         print("Error: No valid sample pairs found. Exiting.", file=sys.stderr)
         sys.exit(1)
