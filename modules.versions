@@ -1,0 +1,22 @@
+# Source of truth for nf-mod-* submodule versions.
+# Renovate reads this file and proposes updates when new releases exist.
+# The post-merge sync workflow then moves the actual submodule pointer to match.
+#
+# Format (one per line):
+#   <module-repo-name>=<version-tag>
+#
+# The module-repo-name must match the GitHub repo name exactly (e.g. nf-mod-fastqc).
+# The version-tag must match a published release tag in that repo (e.g. v1.2.3).
+#
+# Everything except nf-mod-fastqc is still at 0.0.0 and has no release yet, so
+# Renovate finds no versions to compare and leaves those lines alone. They start
+# working once each module cuts its first release; until then the submodule
+# pointers are the real record of what this pipeline uses.
+
+nf-mod-bcftools=0.0.0
+nf-mod-bedtools=0.0.0
+nf-mod-bwa=0.0.0
+nf-mod-fastp=0.0.0
+nf-mod-fastqc=2.0.2
+nf-mod-parabricks=0.0.0
+nf-mod-samtools=0.0.0
