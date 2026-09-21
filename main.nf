@@ -296,10 +296,10 @@ output {
     alignment    { path 'alignment'            }
     dup_metrics  { path 'alignment'            }
     bigwig       { path 'bigwig'               }
-    bcf          { path 'variants/bcf'         }
-    vcf          { path 'variants/vcf'         }
-    csv          { path 'variants/csv'         }
+    bcf          { path 'variants/bcftools/bcf'}
+    vcf          { path 'variants/bcftools/vcf'}
+    csv          { path 'variants/bcftools/csv'}
     consensus    { path 'consensus'            }
-    deepvariant  { path 'variants/deepvariant' }
-    mutect       { path 'variants/mutect'      }
+    deepvariant  { path 'variants/deepvariant/vcf'}
+    mutect       { path 'variants/mutect/vcf'  }
 }
