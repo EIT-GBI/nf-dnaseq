@@ -232,7 +232,7 @@ These live in `params.cluster.yaml`:
 | `alignment.device` | `cpu` (bwa/samtools) or `gpu` (Parabricks fq2bam) |
 | `trimmer` | `fastp` (`cutadapt` not yet implemented) |
 | `platform` | Sequencing platform recorded as `PL` in the BAM read group, for samples whose samplesheet row does not set one. Unset records `ILLUMINA` |
-| `skip_variant_calling` | `true` to skip variant calling entirely (no BCF/VCF/CSV/consensus); `false` (default) to run it |
+| `skip_variant_calling` | `true` to skip variant calling entirely: no output from any caller, and no consensus; `false` (default) to run it |
 | `variant_callers` | List: any of `bcftools`, `deepvariant`, `mutect2`. Ignored when `skip_variant_calling` is `true` |
 | `min_mapq`, `min_qual`, `min_depth`, `ploidy` | bcftools calling/filtering thresholds |
 | `ucsc_dir` | Only for **local** runs (path to `bedGraphToBigWig`); ignored on the cluster |

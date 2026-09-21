@@ -74,7 +74,7 @@ workflow {
     // calls, so there is nothing to build a consensus from.
     def callers = []
     if (skip_variant_calling) {
-        log.info "Variant calling is off (params.skip_variant_calling = true): no BCF, VCF, CSV or consensus output."
+        log.info "Variant calling is off (params.skip_variant_calling = true): no output from any caller, and no consensus."
     }
     else {
         callers = (params.variant_callers instanceof List)
