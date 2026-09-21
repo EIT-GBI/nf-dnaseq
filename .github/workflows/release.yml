@@ -31,6 +31,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # The pin check below runs git describe inside each submodule, so
+          # they have to be on disk. fetch-depth: 0 applies to them too, which
+          # is what brings their tags down.
+          submodules: recursive
           # Elevated token (PAT or GitHub App) whose owner/app is on the
           # main ruleset's bypass list. The default GITHUB_TOKEN cannot
           # bypass rulesets, so pushing the bump commit to main needs this.
