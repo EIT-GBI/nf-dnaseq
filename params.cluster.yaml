@@ -1,36 +1,50 @@
-# you should only need a samplesheet to run the pipeline here
+# Example parameters for -profile cluster.
+# Copy this file, edit the paths, and pass it with -params-file.
+#
+# You should only need a samplesheet to run the pipeline. If you don't have one,
+# set fastq_dir + reference_genome instead and the pipeline will build it.
+
+# Path to a CSV with columns: sample,R1,R2,reference
 samplesheet: null
-outdir: '/mnt/gbi-shared/home/cristian-eitgbi/data/misc/nf-dnaseq-test/results/'
 
-# if you don't have a samplesheet specify path to fastq files and reference genome
-fastq_dir: '/mnt/gbi-shared/home/cristian-eitgbi/data/misc/nf-dnaseq-test/fastq/'
-reference_genome: 'mouse/MDS42_r24-30_27B_SC.fasta'
+# Where published results go
+outdir: './results'
 
-# dir that stores all the reference genomes
-reference_dir: "/mnt/gbi-shared/home/cristian-eitgbi/data/references/"
+# If you don't have a samplesheet, specify a fastq dir and a reference genome.
+# reference_genome is resolved relative to reference_dir.
+fastq_dir: null
+reference_genome: null
 
-device: 'cpu' # 'cpu' or 'gpu'
+# Directory holding all the reference genomes. The samplesheet 'reference'
+# column is resolved relative to this.
+reference_dir: null
 
-trimmer: 'fastp' # 'fastp' or 'cutadapt'
+# Read trimming: 'fastp' or 'cutadapt'
+trimmer: 'fastp'
 
-# alignment params
+# Alignment
 alignment:
-  threads: 4
-  device: 'cpu' # 'cpu' or 'gpu'
+  device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
 
-# variant calling params
-variant_callers: # options: bcftools, deepvariant, mutect2
+# Set to true to skip variant calling altogether: no output from any caller
+# (bcftools BCF/VCF/CSV, DeepVariant or Mutect2 VCFs) and no consensus, whatever
+# variant_callers says below. Use it when you only want trimming, QC, alignment
+# and coverage tracks.
+skip_variant_calling: false
+
+# Variant calling: any of bcftools, deepvariant, mutect2
+# Ignored when skip_variant_calling is true.
+variant_callers:
   - bcftools
   - deepvariant
 #  - mutect2
 
+# Variant filtering thresholds
 min_mapq: 20
 min_qual: 20
 ploidy: 1
 min_depth: 10
 
-# scripts params
-scripts:
-  py_samplesheet: "./scripts/generate_samplesheet.py"
-
+# Directory holding the UCSC binaries (bedGraphToBigWig), for -profile local.
+# Leave null when the bedtools container provides them.
 ucsc_dir: null

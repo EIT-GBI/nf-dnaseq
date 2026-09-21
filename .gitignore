@@ -2,3 +2,8 @@ params.local.yaml
 .nextflow.log*
 work/
 .nextflow*
+results*/
+baseline_results/
+slurm-*.out
+.nf-test/
+.nf-test.log
