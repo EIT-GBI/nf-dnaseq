@@ -35,9 +35,9 @@ nextflow_pipeline {
             assert names('qc/fastqc').size() == 8
             assert names('qc/flagstat').size() == 2
             assert names('bigwig').containsAll(['SAMPLE1.bw', 'SAMPLE2.bw'])
-            assert names('variants/bcf').size() == 4
-            assert names('variants/vcf').size() == 4
-            assert names('variants/csv').size() == 2
+            assert names('variants/bcftools/bcf').size() == 4
+            assert names('variants/bcftools/vcf').size() == 4
+            assert names('variants/bcftools/csv').size() == 2
             assert names('consensus').size() == 2
 
             // GPU-only outputs must not appear on the CPU path
@@ -63,8 +63,8 @@ nextflow_pipeline {
 
             def names = { sub -> (new File("$outputDir/$sub").list() ?: []) as List }
 
-            assert names('variants/deepvariant').size() == 2
-            assert names('variants/mutect').size() == 2
+            assert names('variants/deepvariant/vcf').size() == 2
+            assert names('variants/mutect/vcf').size() == 2
             // fq2bam emits duplicate metrics alongside the BAMs
             assert names('alignment').any { it.endsWith('.dup_metrics.txt') }
             // the GPU path must not fall back to bwa/samtools

@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           for d in alignment bigwig consensus qc/fastqc qc/flagstat trimmed \
-                   variants/bcf variants/vcf variants/csv; do
+                   variants/bcftools/bcf variants/bcftools/vcf variants/bcftools/csv; do
             if [ ! -d "results_ci/$d" ]; then
               echo "::error::expected published directory missing: $d"
               exit 1
@@ -106,8 +106,8 @@ jobs:
             --alignment.device gpu \
             --variant_callers bcftools,deepvariant,mutect2 \
             --outdir results_gpu_stub
-          test -d results_gpu_stub/variants/deepvariant
-          test -d results_gpu_stub/variants/mutect
+          test -d results_gpu_stub/variants/deepvariant/vcf
+          test -d results_gpu_stub/variants/mutect/vcf
 
       - name: Upload logs on failure
         if: failure()

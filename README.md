@@ -336,9 +336,12 @@ outdir/
 ├── bigwig/               # coverage tracks (.bw)
 ├── consensus/            # consensus FASTA
 └── variants/
-    ├── bcf/  vcf/  csv/   # bcftools outputs
-    ├── deepvariant/       # DeepVariant VCFs (GPU)
-    └── mutect/            # Mutect2 VCFs (GPU)
+    ├── bcftools/
+    │   └── bcf/  vcf/  csv/   # bcftools outputs
+    ├── deepvariant/
+    │   └── vcf/               # DeepVariant VCFs (GPU)
+    └── mutect/
+        └── vcf/               # Mutect2 VCFs (GPU)
 ```
 
 Publishing is defined by the `output {}` block at the bottom of `main.nf`, not by
