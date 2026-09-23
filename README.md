@@ -2,7 +2,16 @@
 
 A Nextflow pipeline for DNA-seq analysis of paired-end short reads: read trimming, QC, alignment, coverage tracks, and variant calling. It runs on a SLURM cluster with Apptainer containers, and supports both **CPU** (bwa + samtools + bcftools) and **GPU** (NVIDIA Parabricks) execution paths.
 
-This guide is written for researchers who want to run the pipeline on their own data on the cluster.
+This README is the **reference**: what the pipeline does, every parameter it
+takes, and how the results are laid out.
+
+> **New to the pipeline, or not comfortable on the command line?**
+> Start with **[docs/running-the-pipeline.md](docs/running-the-pipeline.md)** —
+> a step-by-step tutorial that assumes no Nextflow knowledge. Part 1 runs the
+> pipeline on your own computer with Docker; Part 2 runs it on the GBI Sandpit
+> cluster, including the cluster-specific set-up this README does not cover
+> (the `nextflow` module, the Lustre publish workaround, and moving results off
+> Lustre afterwards).
 
 ---
 
@@ -82,6 +91,11 @@ nextflow run . -profile test,docker
 ---
 
 ## TLDR: Run it on the cluster
+
+> This is the short version, for people who already use the cluster. The full
+> procedure — logging in, checking your set-up, indexing a large reference,
+> collecting results — is in
+> [docs/running-the-pipeline.md](docs/running-the-pipeline.md#part-2--running-on-the-gbi-cluster).
 
 You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
 
