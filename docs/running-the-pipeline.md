@@ -190,7 +190,7 @@ mv params.cluster.yaml params.yaml
 nano params.yaml
 ```
 
-Set these four things; leave the rest alone:
+Set these paths; leave the rest alone:
 
 ```yaml
 samplesheet: null
@@ -205,6 +205,21 @@ Use **full paths**, not `~`. Run `pwd` in a folder to see its full path.
 > **How `reference_dir` and `reference_genome` fit together:** the pipeline
 > joins them, so the example above looks for
 > `/Users/you/references/sarscov2/genome.fasta`.
+
+Then find the `variant_callers` block further down and **comment out
+`deepvariant`**, so only `bcftools` is left:
+
+```yaml
+variant_callers:
+  - bcftools
+#  - deepvariant
+#  - mutect2
+```
+
+This one matters. The file ships with `deepvariant` switched on, and
+`deepvariant` is a GPU step: left in, your run downloads a multi-gigabyte
+NVIDIA container and then fails for want of a graphics card. `bcftools` is the
+one that works here.
 
 In `nano`, use the arrow keys to move around, then `Ctrl-O` and `Enter` to save,
 and `Ctrl-X` to quit.
@@ -232,6 +247,7 @@ Everything is in the `results` folder:
 
 ```text
 results/
+├── samplesheet/      the list of samples the run used, built from your fastq folder
 ├── trimmed/          fastp trimming reports (open the .html in a browser)
 ├── qc/fastqc/        FastQC read-quality reports (.html)
 ├── qc/flagstat/      alignment summary numbers
@@ -242,6 +258,10 @@ results/
 ```
 
 These are real files, so you can move or copy them anywhere.
+
+`samplesheet/samplesheet.csv` is worth a glance on your first run: it records
+which FASTQ files were paired together and what each sample ended up being
+called. If a sample is missing from your results, this is where it shows.
 
 The `work` folder holds the intermediate files and is much larger. Once you are
 happy with your results, delete it:
@@ -472,6 +492,13 @@ in each run folder and then forget about it:
 ```bash
 echo "workflow.output.mode = 'link'" > lustre.config
 ```
+
+> **While this file is in use, leave `outdir` as `./results`.** The workaround
+> publishes results as links rather than copies, and a link cannot point across
+> disks - so an `outdir` somewhere outside this folder, in your home directory
+> say, makes the run fail when it tries to publish. This is temporary: once the
+> storage fault is fixed, the pipeline goes back to writing real copies and the
+> restriction goes with it.
 
 ---
 

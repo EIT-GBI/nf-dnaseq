@@ -221,14 +221,31 @@ reference_genome: "mouse/MDS42_r24-30_27B_SC.fasta"
 
 the pipeline resolves `/mnt/gbi-shared/.../references/mouse/MDS42_r24-30_27B_SC.fasta`.
 
-Each reference **must be pre-indexed**. Alongside the `.fasta` you need:
+A bare `.fasta` is enough: the pipeline checks for each index beside the
+reference and builds whatever is missing before alignment. These are the files
+it needs, and builds if absent:
 
-| File(s) | Needed for |
-|---|---|
-| `*.fasta.fai` | samtools faidx (variant calling, bigwig) |
-| `*.fasta.{amb,ann,bwt,pac,sa}` | bwa index (used by **both** CPU and GPU alignment) |
+| File(s) | Built by | Needed for |
+|---|---|---|
+| `*.fasta.fai` | `SAMTOOLS_FAIDX` | variant calling, bigwig |
+| `*.fasta.{amb,ann,bwt,pac,sa}` | `BWA_INDEX` | bwa index (used by **both** CPU and GPU alignment) |
 
-Build them once with `bwa index genome.fasta` and `samtools faidx genome.fasta`. #todo do indexing automatically if missing.
+**Pre-indexing is still worth it for large genomes**, for two reasons:
+
+- The index is built per *run directory*, so a fresh run folder rebuilds it.
+  For a mouse or human reference that is an hour or more each time.
+- The GPU path needs it beside the real reference. Parabricks resolves `--ref`
+  to its real path and expects the whole index, `.fai` included, next to it.
+
+Build both indexes once on a compute node with the bundled script:
+
+```bash
+sbatch scripts/index_reference.sbatch /path/to/genome.fasta
+```
+
+It skips any index that already exists. Login nodes have no container runtime,
+and `bwa index` needs roughly 5.5x the genome size in RAM, so it must run as a
+job rather than on the login node - raise `--mem` for a large reference.
 
 ---
 
@@ -259,6 +276,13 @@ variant_callers:
   - deepvariant
 #  - mutect2
 ```
+
+> **Mind the two different defaults.** The block above is what
+> `params.cluster.yaml` ships with, so a run using that file unedited requests
+> **`deepvariant`, which is GPU-only** - it will queue for GPU nodes even if you
+> aligned on CPU. The pipeline's own default in `nextflow.config` is
+> `['bcftools']` alone, which is what you get with no params file. Drop the
+> `deepvariant` line unless you want the GPU path.
 
 To skip variant calling altogether, leave `variant_callers` as it is and set:
 
@@ -341,7 +365,7 @@ Results are published under `outdir`:
 
 ```
 outdir/
-├── samplesheet/          # generated samplesheet.csv (only when the pipeline built one)
+├── samplesheet/          # the samplesheet used for the run, generated or supplied
 ├── trimmed/              # fastp reports (html/json) - not the trimmed FASTQs
 ├── qc/
 │   ├── fastqc/           # FastQC reports
@@ -378,8 +402,9 @@ The `cluster` profile requests GPUs for all Parabricks steps:
 
 ```groovy
 withName: 'PARABRICKS_.*' {
+    memory           = 32.GB
     accelerator      = 2
-    clusterOptions   = '--gres=gpu:2'   // must match accelerator / --num-gpus
+    clusterOptions   = '--gres=gpu:2'   // typed gres (nodes expose gpu:h100:8); keep count == accelerator/--num-gpus
     queue            = 'gpu'
     containerOptions = '--nv'           // exposes host GPUs to the container
 }
@@ -395,13 +420,11 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
 | A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
-| GitHub `403` on `git submodule update` | Private repo; use a PAT with `repo` scope, authorize for SSO |
 | `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
 
 
 ## TODO list
 - [ ] Add `cutadapt` trimmer option.
 - [ ] Add 'gatk' variant caller option.
-- [x] Add tmux instructions for cluster runs.
 - [ ] Add produce csvs for all variant callers. Easy for inspection.
 
