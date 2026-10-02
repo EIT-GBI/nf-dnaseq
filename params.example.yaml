@@ -1,0 +1,59 @@
+# Ready-made parameters for the example dataset.
+#
+# This is a real run, set up exactly as you would set up your own: a folder of
+# FASTQ pairs, a reference genome, and this file. Only the data is small.
+# Download the data and run it as described in docs/running-the-pipeline.md
+# ("A practice run with example data").
+#
+# The folder layout it expects, inside the folder you start the run from:
+#
+#   example-data/
+#   ├── fastq/
+#   │   ├── SAMPLE1_R1.fastq.gz
+#   │   ├── SAMPLE1_R2.fastq.gz
+#   │   ├── SAMPLE2_R1.fastq.gz
+#   │   └── SAMPLE2_R2.fastq.gz
+#   └── references/
+#       └── sarscov2/
+#           └── genome.fasta
+#
+# If the pipeline works with this file but not with yours, compare the two
+# side by side. The only lines you normally need to change are the paths.
+
+# No samplesheet: the pipeline builds one from fastq_dir
+samplesheet: null
+
+# Where published results go
+outdir: './results'
+
+# The folder of FASTQ pairs, and the reference genome to align them to.
+# reference_genome is resolved relative to reference_dir.
+#
+# These paths are relative to the folder you start the run from. For your own
+# data, full paths (starting with /) are safer.
+fastq_dir: './example-data/fastq'
+reference_dir: './example-data/references'
+reference_genome: 'sarscov2/genome.fasta'
+
+# Read trimming
+trimmer: 'fastp'
+
+# Alignment
+alignment:
+  device: 'cpu' # 'cpu' for bwa+samtools, 'gpu' for Parabricks
+
+skip_variant_calling: false
+
+# bcftools only: it runs on CPU, so this works on your own computer too
+variant_callers:
+  - bcftools
+
+# Variant filtering thresholds. The example reads are too few to pass the usual
+# thresholds (see params.cluster.yaml), so these are turned right down to make
+# sure some variants are called. Do not copy these for real data.
+min_mapq: 0
+min_qual: 0
+ploidy: 1
+min_depth: 0
+
+ucsc_dir: null

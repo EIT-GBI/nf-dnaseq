@@ -1,6 +1,6 @@
 # nf-dnaseq
 
-A Nextflow pipeline for DNA-seq analysis of paired-end short reads: read trimming, QC, alignment, coverage tracks, and variant calling. It runs on a SLURM cluster with Apptainer containers, and supports both **CPU** (bwa + samtools + bcftools) and **GPU** (NVIDIA Parabricks) execution paths.
+A Nextflow pipeline for DNA-seq analysis of paired-end short reads: read trimming, QC, alignment, coverage tracks, and variant calling. It runs on a SLURM cluster (or on your own computer with Docker), and supports both **CPU** (bwa + samtools + bcftools) and **GPU** (NVIDIA Parabricks) execution paths.
 
 This README is the **reference**: what the pipeline does, every parameter it
 takes, and how the results are laid out.
@@ -8,10 +8,11 @@ takes, and how the results are laid out.
 > **New to the pipeline, or not comfortable on the command line?**
 > Start with **[docs/running-the-pipeline.md](docs/running-the-pipeline.md)** —
 > a step-by-step tutorial that assumes no Nextflow knowledge. Part 1 runs the
-> pipeline on your own computer with Docker; Part 2 runs it on the GBI Sandpit
-> cluster, including the cluster-specific set-up this README does not cover
-> (the `nextflow` module, the Lustre publish workaround, and moving results off
-> Lustre afterwards).
+> pipeline on the GBI Sandpit cluster, which is where you should run your
+> analyses, including the cluster-specific set-up this README does not cover
+> (the Lustre publish workaround, and moving results off Lustre afterwards).
+> Part 2 (optional) runs it on your own computer with Docker, for trying it out
+> on small data.
 
 ---
 
@@ -59,7 +60,10 @@ flowchart TD
 - **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
   aborts on anything older). To use a specific version without installing it
   system-wide: `NXF_VER=26.04.6 nextflow run ...`
-- A container engine: Docker (`-profile docker`) or Apptainer (`-profile cluster`).
+- **On the cluster:** nothing to install. Nextflow is provided as a module
+  (`module load nextflow`), and the containers are already set up for the
+  `cluster` profile.
+- **On your own computer:** Docker, used with `-profile docker`.
 
 If you clone the repo rather than letting Nextflow fetch it, the modules are git
 submodules, so clone recursively — a plain clone leaves `modules/` empty and every
@@ -88,6 +92,22 @@ two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
 nextflow run . -profile test,docker
 ```
 
+### Example data with a ready-made params file
+
+To try the pipeline the way you would run your own data, use
+[`params.example.yaml`](params.example.yaml). It points at the same small
+dataset, laid out as a normal FASTQ folder plus a reference genome. The
+download commands are in
+[docs/running-the-pipeline.md](docs/running-the-pipeline.md#optional--a-practice-run-with-example-data).
+Once the data is in place, run:
+
+```bash
+nextflow run . -params-file params.example.yaml -profile docker
+```
+
+If that works but your own run fails, compare your folder and params file
+with the example's.
+
 ---
 
 ## TLDR: Run it on the cluster
@@ -95,9 +115,20 @@ nextflow run . -profile test,docker
 > This is the short version, for people who already use the cluster. The full
 > procedure — logging in, checking your set-up, indexing a large reference,
 > collecting results — is in
-> [docs/running-the-pipeline.md](docs/running-the-pipeline.md#part-2--running-on-the-gbi-cluster).
+> [docs/running-the-pipeline.md](docs/running-the-pipeline.md#part-1--running-on-the-gbi-cluster).
 
-You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
+You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is five steps: load Nextflow, make a working directory, fetch the params file, edit it, submit.
+
+### 0. Load Nextflow
+
+Nextflow is provided on the cluster as a module:
+
+```bash
+module load nextflow
+nextflow -version     # should print 26.04.4 or newer
+```
+
+If `module avail nextflow` lists nothing, the module is not available yet — ask the platform team.
 
 ### 1. Go to the folder where you want your results
 
@@ -131,8 +162,8 @@ At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, `reference_di
 
 ```bash
 sbatch -J nf-driver -p cpu \
-  --wrap="nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -params-file params.cluster.yaml -profile cluster -resume"
+  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+    -params-file params.cluster.yaml -profile cluster -resume'"
 ```
 
 Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f slurm-<jobid>.out`.
@@ -145,10 +176,12 @@ Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f sl
 | `-J nf-driver` | Job **name**. This job is only the Nextflow *driver* — it submits and babysits the real work; the actual tools run in their own separate jobs. |
 | `-p cpu` | **Partition** (queue) for the driver. The driver itself is tiny, so `cpu` is right even for GPU pipelines — the Parabricks steps request the `gpu` partition themselves. |
 | `--wrap="..."` | Runs this command instead of you writing a `#SBATCH` script file. Everything inside the quotes is what actually executes on the node. |
+| `bash -lc '...'` | Starts a login shell inside the job so that the `module` command exists. Without it the job fails with `module: not found`. |
+| `module load nextflow` | Puts Nextflow on the job's path. Loading it on the login node does not carry over into the job, so it has to be in the command. |
 | `nextflow run <url>` | Pulls the pipeline from GitHub and runs it. No clone needed — Nextflow caches it under `~/.nextflow/assets/`. |
 | `-latest` | Re-pull the newest commit on the default branch. Without this, Nextflow silently reuses whatever it cached the first time, so you'd miss bug fixes. |
 | `-params-file params.cluster.yaml` | Your inputs and settings (this is the file you edited in step 3). |
-| `-profile cluster` | SLURM executor + Apptainer containers. |
+| `-profile cluster` | Runs each step as its own SLURM job, using the cluster's containers. |
 | `-resume` | Reuse cached results from previous runs. Always safe to include. |
 
 > The driver job runs for as long as the whole pipeline takes, so it needs a generous walltime. Add `-t 5-00:00:00` (5 days) if your partition's default limit is shorter than your run.
@@ -163,6 +196,7 @@ If your run is small, you want to watch the progress bars live, and you don't mi
 
 ```bash
 tmux new -s nf              # start a named session
+module load nextflow
 nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
   -params-file params.cluster.yaml -profile cluster -resume
 ```
@@ -319,7 +353,7 @@ flowchart TD
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
 
-> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="bash -lc 'module load nextflow && ...'"` as above.
 
 ### Examples
 
@@ -420,7 +454,8 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
 | A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
-| `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
+| `module: not found` in the driver log | The `bash -lc '...'` wrapper was dropped from the `sbatch --wrap` command → submit it exactly as in [step 4](#4-submit-the-run) |
+| `nextflow: command not found` | Nextflow is not loaded → `module load nextflow` (inside the `--wrap` command when using `sbatch`) |
 
 
 ## TODO list
