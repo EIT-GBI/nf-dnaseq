@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory as an argument rather than reading `params.reference_dir`.
 - Module submodules and their containers are pinned to release tags instead of
   floating commits and `:latest`.
+- The release workflows (`release.yml`, `auto-release.yml`,
+  `sync-submodules.yml`) push to `main` with a token from the
+  `eit-gbi-release-bot` GitHub App instead of the `NF_ORG_PAT` personal token,
+  so they can bypass the `main` ruleset.
 
 ### Fixed
 

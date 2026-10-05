@@ -28,6 +28,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Short-lived token for the eit-gbi-release-bot GitHub App, which is on
+      # the main ruleset's bypass list. The default GITHUB_TOKEN cannot bypass
+      # rulesets, so pushing to main needs this. Pushes made with an app token
+      # also trigger other workflows, which GITHUB_TOKEN pushes do not.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -35,10 +45,7 @@ jobs:
           # they have to be on disk. fetch-depth: 0 applies to them too, which
           # is what brings their tags down.
           submodules: recursive
-          # Elevated token (PAT or GitHub App) whose owner/app is on the
-          # main ruleset's bypass list. The default GITHUB_TOKEN cannot
-          # bypass rulesets, so pushing the bump commit to main needs this.
-          token: ${{ secrets.NF_ORG_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Determine bump type
         id: bump
