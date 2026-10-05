@@ -1,8 +1,27 @@
 # nf-dnaseq
 
-A Nextflow pipeline for DNA-seq analysis of paired-end short reads: read trimming, QC, alignment, coverage tracks, and variant calling. It runs on a SLURM cluster with Apptainer containers, and supports both **CPU** (bwa + samtools + bcftools) and **GPU** (NVIDIA Parabricks) execution paths.
+A Nextflow pipeline for DNA-seq analysis of paired-end short reads: read trimming, QC, alignment, coverage tracks, and variant calling. It runs on a SLURM cluster (or on your own computer with Docker), and supports both **CPU** (bwa + samtools + bcftools) and **GPU** (NVIDIA Parabricks) execution paths.
 
-This guide is written for researchers who want to run the pipeline on their own data on the cluster.
+This README is the **reference**: what the pipeline does, every parameter it
+takes, and how the results are laid out.
+
+> **New to the pipeline, or not comfortable on the command line?**
+> Start with **[docs/running-the-pipeline.md](docs/running-the-pipeline.md)** —
+> a step-by-step tutorial that assumes no Nextflow knowledge. Part 1 runs the
+> pipeline on the GBI Sandpit cluster, which is where you should run your
+> analyses, including the cluster-specific set-up this README does not cover
+> (the Lustre publish workaround, and moving results off Lustre afterwards).
+> Part 2 (optional) runs it on your own computer with Docker, for trying it out
+> on small data.
+
+> [!IMPORTANT]
+> **Lustre (`/mnt/lustre`) is expensive, shared scratch space — do not copy data
+> from one Lustre location to another.** If your FASTQ files or reference genome
+> are already on Lustre, point `fastq_dir` / `reference_dir` at them where they
+> are, or use symlinks (`ln -s`). Link a genome's whole folder rather than the
+> `.fasta` alone, so the index files beside it are found. Move results off Lustre
+> once a run is finished — see
+> [Step 8 of the tutorial](docs/running-the-pipeline.md#step-8--collect-your-results).
 
 ---
 
@@ -50,7 +69,10 @@ flowchart TD
 - **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
   aborts on anything older). To use a specific version without installing it
   system-wide: `NXF_VER=26.04.6 nextflow run ...`
-- A container engine: Docker (`-profile docker`) or Apptainer (`-profile cluster`).
+- **On the cluster:** nothing to install. Nextflow is provided as a module
+  (`module load nextflow`), and the containers are already set up for the
+  `cluster` profile.
+- **On your own computer:** Docker, used with `-profile docker`.
 
 If you clone the repo rather than letting Nextflow fetch it, the modules are git
 submodules, so clone recursively — a plain clone leaves `modules/` empty and every
@@ -79,9 +101,30 @@ two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
 nextflow run . -profile test,docker
 ```
 
+### Example data with a ready-made params file
+
+To try the pipeline the way you would run your own data, use
+[`params.example.yaml`](params.example.yaml). It points at the same small
+dataset, laid out as a normal FASTQ folder plus a reference genome. The
+download commands are in
+[docs/running-the-pipeline.md](docs/running-the-pipeline.md#optional--a-practice-run-with-example-data).
+Once the data is in place, run:
+
+```bash
+nextflow run . -params-file params.example.yaml -profile docker
+```
+
+If that works but your own run fails, compare your folder and params file
+with the example's.
+
 ---
 
 ## TLDR: Run it on the cluster
+
+> This is the short version, for people who already use the cluster. The full
+> procedure — logging in, checking your set-up, indexing a large reference,
+> collecting results — is in
+> [docs/running-the-pipeline.md](docs/running-the-pipeline.md#part-1--running-on-the-gbi-cluster).
 
 You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
 
@@ -98,6 +141,8 @@ dataset_name=my-illumina-run # change this to your dataset name
 mkdir -p /mnt/lustre/users/$USER/data/$dataset_name
 cd /mnt/lustre/users/$USER/data/$dataset_name
 ```
+
+Keep only the run's own files here. If your FASTQ files are already elsewhere on Lustre, do not copy them into this folder — set `fastq_dir` to where they are (or a folder of symlinks to them).
 
 ### 2. Fetch the params file
 
@@ -117,11 +162,13 @@ At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, `reference_di
 
 ```bash
 sbatch -J nf-driver -p cpu \
-  --wrap="nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -params-file params.cluster.yaml -profile cluster -resume"
+  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+    -params-file params.cluster.yaml -profile cluster -resume'"
 ```
 
 Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f slurm-<jobid>.out`.
+
+There is no need to load Nextflow beforehand: the `module load nextflow` inside `--wrap` loads it in the job itself. If the log says the module cannot be found, check `module avail nextflow` on the login node. If it lists nothing, the module is not available yet, so ask the platform team.
 
 ### What each part does
 
@@ -131,10 +178,12 @@ Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f sl
 | `-J nf-driver` | Job **name**. This job is only the Nextflow *driver* — it submits and babysits the real work; the actual tools run in their own separate jobs. |
 | `-p cpu` | **Partition** (queue) for the driver. The driver itself is tiny, so `cpu` is right even for GPU pipelines — the Parabricks steps request the `gpu` partition themselves. |
 | `--wrap="..."` | Runs this command instead of you writing a `#SBATCH` script file. Everything inside the quotes is what actually executes on the node. |
+| `bash -lc '...'` | Starts a login shell inside the job so that the `module` command exists. Without it the job fails with `module: not found`. |
+| `module load nextflow` | Puts Nextflow on the job's path. Loading it on the login node does not carry over into the job, so it has to be in the command. |
 | `nextflow run <url>` | Pulls the pipeline from GitHub and runs it. No clone needed — Nextflow caches it under `~/.nextflow/assets/`. |
 | `-latest` | Re-pull the newest commit on the default branch. Without this, Nextflow silently reuses whatever it cached the first time, so you'd miss bug fixes. |
 | `-params-file params.cluster.yaml` | Your inputs and settings (this is the file you edited in step 3). |
-| `-profile cluster` | SLURM executor + Apptainer containers. |
+| `-profile cluster` | Runs each step as its own SLURM job, using the cluster's containers. |
 | `-resume` | Reuse cached results from previous runs. Always safe to include. |
 
 > The driver job runs for as long as the whole pipeline takes, so it needs a generous walltime. Add `-t 5-00:00:00` (5 days) if your partition's default limit is shorter than your run.
@@ -149,6 +198,7 @@ If your run is small, you want to watch the progress bars live, and you don't mi
 
 ```bash
 tmux new -s nf              # start a named session
+module load nextflow
 nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
   -params-file params.cluster.yaml -profile cluster -resume
 ```
@@ -207,14 +257,31 @@ reference_genome: "mouse/MDS42_r24-30_27B_SC.fasta"
 
 the pipeline resolves `/mnt/gbi-shared/.../references/mouse/MDS42_r24-30_27B_SC.fasta`.
 
-Each reference **must be pre-indexed**. Alongside the `.fasta` you need:
+A bare `.fasta` is enough: the pipeline checks for each index beside the
+reference and builds whatever is missing before alignment. These are the files
+it needs, and builds if absent:
 
-| File(s) | Needed for |
-|---|---|
-| `*.fasta.fai` | samtools faidx (variant calling, bigwig) |
-| `*.fasta.{amb,ann,bwt,pac,sa}` | bwa index (used by **both** CPU and GPU alignment) |
+| File(s) | Built by | Needed for |
+|---|---|---|
+| `*.fasta.fai` | `SAMTOOLS_FAIDX` | variant calling, bigwig |
+| `*.fasta.{amb,ann,bwt,pac,sa}` | `BWA_INDEX` | bwa index (used by **both** CPU and GPU alignment) |
 
-Build them once with `bwa index genome.fasta` and `samtools faidx genome.fasta`. #todo do indexing automatically if missing.
+**Pre-indexing is still worth it for large genomes**, for two reasons:
+
+- The index is built per *run directory*, so a fresh run folder rebuilds it.
+  For a mouse or human reference that is an hour or more each time.
+- The GPU path needs it beside the real reference. Parabricks resolves `--ref`
+  to its real path and expects the whole index, `.fai` included, next to it.
+
+Build both indexes once on a compute node with the bundled script:
+
+```bash
+sbatch scripts/index_reference.sbatch /path/to/genome.fasta
+```
+
+It skips any index that already exists. Login nodes have no container runtime,
+and `bwa index` needs roughly 5.5x the genome size in RAM, so it must run as a
+job rather than on the login node - raise `--mem` for a large reference.
 
 ---
 
@@ -245,6 +312,13 @@ variant_callers:
   - deepvariant
 #  - mutect2
 ```
+
+> **Mind the two different defaults.** The block above is what
+> `params.cluster.yaml` ships with, so a run using that file unedited requests
+> **`deepvariant`, which is GPU-only** - it will queue for GPU nodes even if you
+> aligned on CPU. The pipeline's own default in `nextflow.config` is
+> `['bcftools']` alone, which is what you get with no params file. Drop the
+> `deepvariant` line unless you want the GPU path.
 
 To skip variant calling altogether, leave `variant_callers` as it is and set:
 
@@ -281,7 +355,7 @@ flowchart TD
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
 
-> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="..."` as above.
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="bash -lc 'module load nextflow && ...'"` as above.
 
 ### Examples
 
@@ -327,7 +401,7 @@ Results are published under `outdir`:
 
 ```
 outdir/
-├── samplesheet/          # generated samplesheet.csv (only when the pipeline built one)
+├── samplesheet/          # the samplesheet used for the run, generated or supplied
 ├── trimmed/              # fastp reports (html/json) - not the trimmed FASTQs
 ├── qc/
 │   ├── fastqc/           # FastQC reports
@@ -364,8 +438,9 @@ The `cluster` profile requests GPUs for all Parabricks steps:
 
 ```groovy
 withName: 'PARABRICKS_.*' {
+    memory           = 32.GB
     accelerator      = 2
-    clusterOptions   = '--gres=gpu:2'   // must match accelerator / --num-gpus
+    clusterOptions   = '--gres=gpu:2'   // typed gres (nodes expose gpu:h100:8); keep count == accelerator/--num-gpus
     queue            = 'gpu'
     containerOptions = '--nv'           // exposes host GPUs to the container
 }
@@ -381,13 +456,12 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
 | A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
-| GitHub `403` on `git submodule update` | Private repo; use a PAT with `repo` scope, authorize for SSO |
-| `mksquashfs … exit status 139` | #todo pin an exact fix for this. Apptainer is probably out of temp space → set `APPTAINER_TMPDIR` to local scratch with more space and ensure `APPTAINER_CACHEDIR` is also set |
+| `module: not found` in the driver log | The `bash -lc '...'` wrapper was dropped from the `sbatch --wrap` command → submit it exactly as in [step 4](#4-submit-the-run) |
+| `nextflow: command not found` | Nextflow is not loaded → `module load nextflow` (inside the `--wrap` command when using `sbatch`) |
 
 
 ## TODO list
 - [ ] Add `cutadapt` trimmer option.
 - [ ] Add 'gatk' variant caller option.
-- [x] Add tmux instructions for cluster runs.
 - [ ] Add produce csvs for all variant callers. Easy for inspection.
 
