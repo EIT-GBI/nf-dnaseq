@@ -126,18 +126,7 @@ with the example's.
 > collecting results — is in
 > [docs/running-the-pipeline.md](docs/running-the-pipeline.md#part-1--running-on-the-gbi-cluster).
 
-You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is five steps: load Nextflow, make a working directory, fetch the params file, edit it, submit.
-
-### 0. Load Nextflow
-
-Nextflow is provided on the cluster as a module:
-
-```bash
-module load nextflow
-nextflow -version     # should print 26.04.4 or newer
-```
-
-If `module avail nextflow` lists nothing, the module is not available yet — ask the platform team.
+You do **not** need to clone the repo to run the pipeline. Nextflow can pull it straight from GitHub, so a run is four steps: make a working directory, fetch the params file, edit it, submit.
 
 ### 1. Go to the folder where you want your results
 
@@ -178,6 +167,8 @@ sbatch -J nf-driver -p cpu \
 ```
 
 Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f slurm-<jobid>.out`.
+
+There is no need to load Nextflow beforehand: the `module load nextflow` inside `--wrap` loads it in the job itself. If the log says the module cannot be found, check `module avail nextflow` on the login node. If it lists nothing, the module is not available yet, so ask the platform team.
 
 ### What each part does
 
