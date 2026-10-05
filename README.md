@@ -14,6 +14,15 @@ takes, and how the results are laid out.
 > Part 2 (optional) runs it on your own computer with Docker, for trying it out
 > on small data.
 
+> [!IMPORTANT]
+> **Lustre (`/mnt/lustre`) is expensive, shared scratch space — do not copy data
+> from one Lustre location to another.** If your FASTQ files or reference genome
+> are already on Lustre, point `fastq_dir` / `reference_dir` at them where they
+> are, or use symlinks (`ln -s`). Link a genome's whole folder rather than the
+> `.fasta` alone, so the index files beside it are found. Move results off Lustre
+> once a run is finished — see
+> [Step 8 of the tutorial](docs/running-the-pipeline.md#step-8--collect-your-results).
+
 ---
 
 ## What the pipeline does
@@ -143,6 +152,8 @@ dataset_name=my-illumina-run # change this to your dataset name
 mkdir -p /mnt/lustre/users/$USER/data/$dataset_name
 cd /mnt/lustre/users/$USER/data/$dataset_name
 ```
+
+Keep only the run's own files here. If your FASTQ files are already elsewhere on Lustre, do not copy them into this folder — set `fastq_dir` to where they are (or a folder of symlinks to them).
 
 ### 2. Fetch the params file
 

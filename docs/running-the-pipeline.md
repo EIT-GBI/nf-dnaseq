@@ -113,6 +113,12 @@ team.
 | **module** | How software is made available. `module load nextflow` puts Nextflow on your path. |
 | **Lustre** | The fast shared disk at `/mnt/lustre`. It is for data you are actively computing on, not for storage. Lustre is expensive, so it cannot simply be made bigger — it only stays usable if everyone moves finished work off it. |
 
+> **Golden rule for Lustre: never copy data from one place on Lustre to another.**
+> Every copy takes up the same expensive space a second time. If your FASTQ files
+> or genome are already somewhere under `/mnt/lustre`, point the pipeline at them
+> where they are, or make a shortcut (`ln -s`) — Steps 3 and 4 show how. Only copy
+> data *onto* Lustre when it lives somewhere else (Object Storage, your laptop).
+
 One thing worth understanding, because the rest of Part 1 depends on it:
 
 > When you start a run, you submit **one** Slurm job. That job is Nextflow
@@ -263,6 +269,23 @@ SAMPLENAME_R2.fastq.gz
 `SAMPLENAME` becomes the sample name in your results. `.fq.gz`, `.fastq` and
 `.fq` also work, and an extra `_001` before the extension is fine.
 
+**If your reads are already on Lustre, do not copy them.** Just set
+`fastq_dir` (Step 5) to the folder they are already in. If
+that folder also holds files you do not want analysed, or the files need
+renaming, make a folder of shortcuts instead — a shortcut takes up no space:
+
+```bash
+mkdir -p fastq
+ln -s /mnt/lustre/path/to/your/reads/*.fastq.gz fastq/
+ls -l fastq/
+```
+
+To give a file a different name, make its shortcut under the new name:
+`ln -s /mnt/lustre/path/to/old_name.fastq.gz fastq/SAMPLE1_R1.fastq.gz`.
+
+Only if your reads are *not* on Lustre yet (for example, they are in Object
+Storage) do you copy them in:
+
 ```bash
 mkdir -p fastq
 cp /wherever/your/reads/are/*.fastq.gz fastq/
@@ -288,6 +311,20 @@ in its own subfolder:
 mkdir -p /mnt/lustre/users/$USER/references/mouse
 cp /wherever/your/genome/is/genome.fasta /mnt/lustre/users/$USER/references/mouse/
 ```
+
+As with the reads: if the genome is already on Lustre (yours from an earlier
+project, or a colleague's), do not copy it. Either set `reference_dir` and
+`reference_genome` (Step 5) to where it already is, or make a shortcut to its
+whole **folder** — not to the `.fasta` on its own, or the pipeline will not find
+the index files that sit beside it:
+
+```bash
+mkdir -p /mnt/lustre/users/$USER/references
+ln -s /mnt/lustre/path/to/mouse /mnt/lustre/users/$USER/references/mouse
+```
+
+If that folder has no index files yet and it is not yours, ask its owner to run
+the indexing step below, rather than taking a copy to index yourself.
 
 A plain `.fasta` is enough: if the `bwa` and `samtools` index files are not
 there, the pipeline builds them for you.
@@ -462,6 +499,9 @@ rather than real files. Turn them into real files:
 ```bash
 rsync -aL results/ results-final/
 ```
+
+(This is the one Lustre-to-Lustre copy the guide asks for, and it is short-lived:
+you delete `work` straight after and move `results-final` off Lustre at the end.)
 
 Check that worked — this should print `0`:
 
