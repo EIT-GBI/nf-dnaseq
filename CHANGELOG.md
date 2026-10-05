@@ -37,3 +37,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `-profile local` no longer interpolates a null `params.ucsc_dir` into `PATH`.
 - Removed a stray debug `print(rows)` from `scripts/generate_samplesheet.py`.
+- Parabricks GPU steps (`PARABRICKS_*`) now retry on exit status 255, a
+  transient GPU failure seen with DeepVariant that succeeds on resume.
