@@ -21,7 +21,7 @@ jobs:
       # workflows so there is one credential to maintain. The app needs
       # Issues: read and write on this repo to open the tracking issues; the
       # nf-mod-* repos are public, so reading their releases needs nothing more.
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
