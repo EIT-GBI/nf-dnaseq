@@ -17,7 +17,7 @@ jobs:
     name: Lint (Nextflow strict syntax)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -45,7 +45,7 @@ jobs:
         # The floor declared in manifest.nextflowVersion, and the latest 26.04 patch
         NXF_VER: ['26.04.4', '26.04.6']
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -121,7 +121,7 @@ jobs:
     name: nf-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
