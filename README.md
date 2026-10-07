@@ -134,15 +134,21 @@ Set up a directory where you want your dataset results to go to. Nextflow writes
 
 ```bash
 # !! Change this to your dataset name !!
-dataset_name=my-illumina-run # change this to your dataset name
+DATASET_NAME=my-illumina-run # change this to your dataset name
+## Directories for run and work
+RUN_DIR=/mnt/lustre/users/$USER/data/$DATASET_NAME
+WORK_DIR=/mnt/lustre/users/$USER/nf-work/$DATASET_NAME
+## Make sure directories are created and move into the run directory
+mkdir -p $RUN_DIR
+mkdir -p $WORK_DIR
+cd $RUN_DIR
 ```
 
-```bash
-mkdir -p /mnt/lustre/users/$USER/data/$dataset_name
-cd /mnt/lustre/users/$USER/data/$dataset_name
-```
+Keep only the run's own files here. If your FASTQ files are already elsewhere on Lustre, do not copy them into this folder — set `fastq_dir` to where they are (or a folder of symlinks to them). 
 
-Keep only the run's own files here. If your FASTQ files are already elsewhere on Lustre, do not copy them into this folder — set `fastq_dir` to where they are (or a folder of symlinks to them).
+Difference between `RUN_DIR` and `WORK_DIR`:
+- `RUN_DIR` is where your params file and results will be stored.
+- `WORK_DIR` is where Nextflow keeps intermediate files and temporary data. Once the dataset is fully processed, once can safely delete this directory to free up space. Normally, the two paths are the same, but we separated them to allow people to easily free up space when needed on lustre.
 
 ### 2. Fetch the params file
 
@@ -156,13 +162,14 @@ curl -O https://raw.githubusercontent.com/EIT-GBI/nf-dnaseq/main/params.cluster.
 nano params.cluster.yaml     # or vim, or edit it in your interactive session.
 ```
 
-At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, `reference_dir`, and `outdir`. See [Key parameters](#key-parameters) for the full list.
+At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, and `reference_dir`. If you do not set `outdir`, it will default to a `results` folder inside `RUN_DIR`. See [Key parameters](#key-parameters) for the full list.
 
 ### 4. Submit the run
 
 ```bash
 sbatch -J nf-driver -p cpu \
   --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+    -work-dir $WORK_DIR \
     -params-file params.cluster.yaml -profile cluster -resume'"
 ```
 
@@ -185,6 +192,7 @@ There is no need to load Nextflow beforehand: the `module load nextflow` inside 
 | `-params-file params.cluster.yaml` | Your inputs and settings (this is the file you edited in step 3). |
 | `-profile cluster` | Runs each step as its own SLURM job, using the cluster's containers. |
 | `-resume` | Reuse cached results from previous runs. Always safe to include. |
+| `-work-dir $WORK_DIR` | Specifies the working directory for Nextflow intermediate files. |
 
 > The driver job runs for as long as the whole pipeline takes, so it needs a generous walltime. Add `-t 5-00:00:00` (5 days) if your partition's default limit is shorter than your run.
 
