@@ -14,4 +14,4 @@ nf-mod-bwa=1.0.0
 nf-mod-fastp=1.0.0
 nf-mod-fastqc=3.0.0
 nf-mod-parabricks=1.0.0
-nf-mod-samtools=1.0.0
+nf-mod-samtools=1.1.0
