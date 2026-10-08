@@ -63,62 +63,6 @@ flowchart TD
 
 ---
 
-
-## Requirements
-
-- **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
-  aborts on anything older). To use a specific version without installing it
-  system-wide: `NXF_VER=26.04.6 nextflow run ...`
-- **On the cluster:** nothing to install. Nextflow is provided as a module
-  (`module load nextflow`), and the containers are already set up for the
-  `cluster` profile.
-- **On your own computer:** Docker, used with `-profile docker`.
-
-If you clone the repo rather than letting Nextflow fetch it, the modules are git
-submodules, so clone recursively — a plain clone leaves `modules/` empty and every
-`include` fails:
-
-```bash
-git clone --recursive https://github.com/EIT-GBI/nf-dnaseq.git
-# already cloned?
-git submodule update --init --recursive
-```
-
-> **Pulling later?** `git pull` moves this repo's *pointer* to each module but
-> does not move the module itself, so you can end up running old module code
-> against a new pipeline — with no error to tell you. Always follow a pull with:
->
-> ```bash
-> git submodule update --init --recursive
-> ```
-
-### Quick check that everything works
-
-A small end-to-end run on a public test dataset (a ~30 KB SARS-CoV-2 genome and
-two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
-
-```bash
-nextflow run . -profile test,docker
-```
-
-### Example data with a ready-made params file
-
-To try the pipeline the way you would run your own data, use
-[`params.example.yaml`](params.example.yaml). It points at the same small
-dataset, laid out as a normal FASTQ folder plus a reference genome. The
-download commands are in
-[docs/running-the-pipeline.md](docs/running-the-pipeline.md#optional--a-practice-run-with-example-data).
-Once the data is in place, run:
-
-```bash
-nextflow run . -params-file params.example.yaml -profile docker
-```
-
-If that works but your own run fails, compare your folder and params file
-with the example's.
-
----
-
 ## TLDR: Run it on the cluster
 
 > This is the short version, for people who already use the cluster. The full
@@ -134,21 +78,25 @@ Set up a directory where you want your dataset results to go to. Nextflow writes
 
 ```bash
 # !! Change this to your dataset name !!
-DATASET_NAME=my-illumina-run # change this to your dataset name
+DATASET_NAME=change-me-to-your-dataset-name # change this to your dataset name
+```
+```bash
 ## Directories for run and work
 RUN_DIR=/mnt/lustre/users/$USER/data/$DATASET_NAME
-WORK_DIR=/mnt/lustre/users/$USER/nf-work/$DATASET_NAME
+export NXF_WORK=/mnt/lustre/users/$USER/nf-work/$DATASET_NAME
 ## Make sure directories are created and move into the run directory
 mkdir -p $RUN_DIR
-mkdir -p $WORK_DIR
+mkdir -p $NXF_WORK
 cd $RUN_DIR
 ```
 
 Keep only the run's own files here. If your FASTQ files are already elsewhere on Lustre, do not copy them into this folder — set `fastq_dir` to where they are (or a folder of symlinks to them). 
 
-Difference between `RUN_DIR` and `WORK_DIR`:
+Difference between `RUN_DIR` and `NXF_WORK`:
 - `RUN_DIR` is where your params file and results will be stored.
-- `WORK_DIR` is where Nextflow keeps intermediate files and temporary data. Once the dataset is fully processed, once can safely delete this directory to free up space. Normally, the two paths are the same, but we separated them to allow people to easily free up space when needed on lustre.
+- `NXF_WORK` is where Nextflow keeps intermediate files and temporary data. Once the dataset is fully processed, one can safely delete this directory to free up space. By default Nextflow puts it inside the launch directory, but we keep it separate so that space can easily be freed up on Lustre when needed.
+
+`NXF_WORK` only lasts for your current shell session. If you log out before submitting, set it again, or Nextflow will create `work/` inside `RUN_DIR`.
 
 ### 2. Fetch the params file
 
@@ -167,32 +115,29 @@ At minimum set `fastq_dir` (or `samplesheet`), `reference_genome`, and `referenc
 ### 4. Submit the run
 
 ```bash
+module load nextflow
 sbatch -J nf-driver -p cpu \
-  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -work-dir $WORK_DIR \
-    -params-file params.cluster.yaml -profile cluster -resume'"
+  --wrap='nextflow run EIT-GBI/nf-dnaseq -latest -params-file params.cluster.yaml -profile cluster -resume'
 ```
 
 Then watch it with `squeue -u $USER`, and read the driver's log with `tail -f slurm-<jobid>.out`.
 
-There is no need to load Nextflow beforehand: the `module load nextflow` inside `--wrap` loads it in the job itself. If the log says the module cannot be found, check `module avail nextflow` on the login node. If it lists nothing, the module is not available yet, so ask the platform team.
+Load Nextflow before submitting: `sbatch` passes your current environment (including `PATH` and `NXF_WORK`) on to the job, so the job finds Nextflow and the work directory from your session. If `module load nextflow` fails, check `module avail nextflow` on the login node. If it lists nothing, the module is not available yet, so ask the platform team.
 
 ### What each part does
 
 | Part | What it does |
 |---|---|
+| `module load nextflow` | Puts Nextflow on your path. The job inherits it from your session when you submit. |
 | `sbatch` | Submits the job to SLURM and returns immediately. The job survives you logging out. |
 | `-J nf-driver` | Job **name**. This job is only the Nextflow *driver* — it submits and babysits the real work; the actual tools run in their own separate jobs. |
 | `-p cpu` | **Partition** (queue) for the driver. The driver itself is tiny, so `cpu` is right even for GPU pipelines — the Parabricks steps request the `gpu` partition themselves. |
-| `--wrap="..."` | Runs this command instead of you writing a `#SBATCH` script file. Everything inside the quotes is what actually executes on the node. |
-| `bash -lc '...'` | Starts a login shell inside the job so that the `module` command exists. Without it the job fails with `module: not found`. |
-| `module load nextflow` | Puts Nextflow on the job's path. Loading it on the login node does not carry over into the job, so it has to be in the command. |
-| `nextflow run <url>` | Pulls the pipeline from GitHub and runs it. No clone needed — Nextflow caches it under `~/.nextflow/assets/`. |
+| `--wrap='...'` | Runs this command instead of you writing a `#SBATCH` script file. Everything inside the quotes is what actually executes on the node. |
+| `nextflow run EIT-GBI/nf-dnaseq` | Pulls the pipeline from GitHub and runs it. No clone needed — Nextflow caches it under `~/.nextflow/assets/`. |
 | `-latest` | Re-pull the newest commit on the default branch. Without this, Nextflow silently reuses whatever it cached the first time, so you'd miss bug fixes. |
 | `-params-file params.cluster.yaml` | Your inputs and settings (this is the file you edited in step 3). |
 | `-profile cluster` | Runs each step as its own SLURM job, using the cluster's containers. |
 | `-resume` | Reuse cached results from previous runs. Always safe to include. |
-| `-work-dir $WORK_DIR` | Specifies the working directory for Nextflow intermediate files. |
 
 > The driver job runs for as long as the whole pipeline takes, so it needs a generous walltime. Add `-t 5-00:00:00` (5 days) if your partition's default limit is shorter than your run.
 
@@ -207,8 +152,7 @@ If your run is small, you want to watch the progress bars live, and you don't mi
 ```bash
 tmux new -s nf              # start a named session
 module load nextflow
-nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-  -params-file params.cluster.yaml -profile cluster -resume
+nextflow run EIT-GBI/nf-dnaseq -latest -params-file params.cluster.yaml -profile cluster -resume
 ```
 
 Detach with `Ctrl-b` then `d`, and come back later with `tmux attach -t nf`. If the session does get killed, just re-run the same command with `-resume` — completed tasks are cached.
@@ -363,7 +307,7 @@ flowchart TD
 
 So you can keep a stable `params.cluster.yaml` and tweak individual runs on the command line without editing files.
 
-> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest`, and wrap the whole thing in `sbatch --wrap="bash -lc 'module load nextflow && ...'"` as above.
+> The examples below are written as `nextflow run main.nf` for brevity, i.e. from a clone. If you are running from GitHub, swap that for `nextflow run EIT-GBI/nf-dnaseq -latest`, and submit it with `module load nextflow` then `sbatch --wrap='...'` as above.
 
 ### Examples
 
@@ -458,14 +402,69 @@ Keep the **GPU count consistent** across `--gres`, `accelerator`, and the tool's
 
 ---
 
+## Requirements
+
+- **Nextflow 26.04.4 or newer** (declared in `manifest.nextflowVersion`; the run
+  aborts on anything older). To use a specific version without installing it
+  system-wide: `NXF_VER=26.04.6 nextflow run ...`
+- **On the cluster:** nothing to install. Nextflow is provided as a module
+  (`module load nextflow`), and the containers are already set up for the
+  `cluster` profile.
+- **On your own computer:** Docker, used with `-profile docker`.
+
+If you clone the repo rather than letting Nextflow fetch it, the modules are git
+submodules, so clone recursively — a plain clone leaves `modules/` empty and every
+`include` fails:
+
+```bash
+git clone --recursive https://github.com/EIT-GBI/nf-dnaseq.git
+# already cloned?
+git submodule update --init --recursive
+```
+
+> **Pulling later?** `git pull` moves this repo's *pointer* to each module but
+> does not move the module itself, so you can end up running old module code
+> against a new pipeline — with no error to tell you. Always follow a pull with:
+>
+> ```bash
+> git submodule update --init --recursive
+> ```
+
+### Quick check that everything works
+
+A small end-to-end run on a public test dataset (a ~30 KB SARS-CoV-2 genome and
+two tiny FASTQ pairs, fetched over HTTPS - nothing to download by hand):
+
+```bash
+nextflow run . -profile test,docker
+```
+
+### Example data with a ready-made params file
+
+To try the pipeline the way you would run your own data, use
+[`params.example.yaml`](params.example.yaml). It points at the same small
+dataset, laid out as a normal FASTQ folder plus a reference genome. The
+download commands are in
+[docs/running-the-pipeline.md](docs/running-the-pipeline.md#optional--a-practice-run-with-example-data).
+Once the data is in place, run:
+
+```bash
+nextflow run . -params-file params.example.yaml -profile docker
+```
+
+If that works but your own run fails, compare your folder and params file
+with the example's.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause / fix |
 |---|---|
 | `Invalid include source: .../modules/...` | Submodules not checked out → `git submodule update --init --recursive` |
 | A module behaves like an older version after `git pull` | The submodule pointer moved but the module did not → `git submodule update --init --recursive` |
-| `module: not found` in the driver log | The `bash -lc '...'` wrapper was dropped from the `sbatch --wrap` command → submit it exactly as in [step 4](#4-submit-the-run) |
-| `nextflow: command not found` | Nextflow is not loaded → `module load nextflow` (inside the `--wrap` command when using `sbatch`) |
+| `work/` appears inside `RUN_DIR` instead of under `nf-work/` | `NXF_WORK` was not set when you submitted (e.g. after logging out) → `export NXF_WORK=...` as in [step 1](#1-go-to-the-folder-where-you-want-your-results) and resubmit |
+| `nextflow: command not found` | Nextflow is not loaded → `module load nextflow` before running `sbatch` |
 
 
 ## TODO list

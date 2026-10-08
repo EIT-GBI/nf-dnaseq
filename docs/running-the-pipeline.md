@@ -153,13 +153,14 @@ cd /mnt/lustre/users/$USER/nf-test
 
 echo "workflow.output.mode = 'link'" > lustre.config
 
+module load nextflow
 sbatch -J nf-test -p cpu -t 04:00:00 \
-  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -profile test,cluster -c lustre.config -resume'"
+  --wrap='nextflow run EIT-GBI/nf-dnaseq -latest -profile test,cluster -c lustre.config -resume'
 ```
 
 `-profile test,cluster` means "use the built-in test data, and run on the
-cluster".
+cluster". `module load nextflow` comes first because the job picks up Nextflow
+from your session when you submit it.
 
 Check on it now and again with `squeue -u $USER`; once it no longer appears
 there, read the log with `tail -30 slurm-<job number>.out`.
@@ -230,9 +231,9 @@ Then submit it with the same command you will use for your own data
 `params.cluster.yaml`:
 
 ```bash
+module load nextflow
 sbatch -J nf-example -p cpu -t 04:00:00 \
-  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -params-file params.example.yaml -profile cluster -c lustre.config -resume'"
+  --wrap='nextflow run EIT-GBI/nf-dnaseq -latest -params-file params.example.yaml -profile cluster -c lustre.config -resume'
 ```
 
 Once it has left `squeue`, `tail -30 slurm-<job number>.out` should show
@@ -248,15 +249,38 @@ Once it has left `squeue`, `tail -30 slurm-<job number>.out` should show
 
 ## Step 3 — Make your working folder
 
-Nextflow writes a large amount of temporary data next to wherever you start it,
-so start it on Lustre, not in your home folder.
+Each dataset gets two folders on Lustre, not in your home folder:
+
+- a **run folder**, where your settings files and results go;
+- a **work folder**, where Nextflow keeps its large temporary data. Keeping it
+  apart means you can delete it in one go once the run is finished
+  ([Step 8](#step-8--collect-your-results)).
+
+First give your dataset a name. Change `my-first-run` to something that
+describes your data:
 
 ```bash
-mkdir -p /mnt/lustre/users/$USER/my-first-run
-cd /mnt/lustre/users/$USER/my-first-run
+DATASET_NAME=my-first-run
 ```
 
-Everything from here on happens in this folder.
+Then make the two folders and go into the run folder:
+
+```bash
+RUN_DIR=/mnt/lustre/users/$USER/data/$DATASET_NAME
+export NXF_WORK=/mnt/lustre/users/$USER/nf-work/$DATASET_NAME
+mkdir -p $RUN_DIR
+mkdir -p $NXF_WORK
+cd $RUN_DIR
+```
+
+`NXF_WORK` is the setting Nextflow reads to know where its work folder is.
+
+> These settings only last until you log out. If you log out before
+> [Step 6](#step-6--start-the-run), run both blocks above again (with the same
+> dataset name) before you submit — otherwise Nextflow puts its temporary data
+> inside your run folder.
+
+Everything from here on happens in the run folder.
 
 Put your FASTQ files in a folder of their own. They must be in pairs, named
 like this:
@@ -370,7 +394,7 @@ Set these, replacing `YOU` with your username (`echo $USER` if unsure):
 
 ```yaml
 samplesheet: null
-fastq_dir: "/mnt/lustre/users/YOU/my-first-run/fastq"
+fastq_dir: "/mnt/lustre/users/YOU/data/my-first-run/fastq"
 reference_dir: "/mnt/lustre/users/YOU/references"
 reference_genome: "mouse/genome.fasta"
 outdir: "./results"
@@ -408,10 +432,19 @@ echo "workflow.output.mode = 'link'" > lustre.config
 
 ## Step 6 — Start the run
 
+From your run folder, check the work folder is still set — this should print
+the `nf-work` path from Step 3, not an empty line:
+
 ```bash
+echo $NXF_WORK
+```
+
+Then submit:
+
+```bash
+module load nextflow
 sbatch -J nf-dnaseq -p cpu -t 5-00:00:00 \
-  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -params-file params.cluster.yaml -profile cluster -c lustre.config -resume'"
+  --wrap='nextflow run EIT-GBI/nf-dnaseq -latest -params-file params.cluster.yaml -profile cluster -c lustre.config -resume'
 ```
 
 **You should see:**
@@ -425,10 +458,11 @@ laptop.
 
 | Part | What it does |
 | --- | --- |
+| `module load nextflow` | Makes Nextflow available. The job takes it, and `NXF_WORK`, from your session when you submit. |
 | `-J nf-dnaseq` | Names the job, so you can spot it in `squeue`. |
 | `-p cpu` | Correct even for GPU pipelines — this job is only Nextflow itself, and the GPU steps ask for GPU nodes on their own. |
 | `-t 5-00:00:00` | Five days. Nextflow lives as long as the whole pipeline. |
-| `bash -lc '...'` | Needed so that `module` exists inside the job. Without it you get `module: not found`. |
+| `EIT-GBI/nf-dnaseq` | The pipeline on GitHub. Nextflow downloads it for you; no need to copy it yourself. |
 | `-latest` | Fetch the newest version of the pipeline. |
 | `-profile cluster` | Use Slurm and the cluster's containers. |
 | `-resume` | Reuse anything already finished. Always safe to include. |
@@ -492,6 +526,14 @@ results/
 which FASTQ files were paired together and what each sample ended up being
 called. If a sample is missing from your results, this is where it shows.
 
+The commands below use `DATASET_NAME`. If you have logged out since Step 3, set
+it again first, with the same name as before:
+
+```bash
+DATASET_NAME=my-first-run
+cd /mnt/lustre/users/$USER/data/$DATASET_NAME
+```
+
 **One important step before you delete anything.** Because of the `lustre.config`
 workaround, the results are currently shortcuts pointing into the `work` folder
 rather than real files. Turn them into real files:
@@ -501,7 +543,8 @@ rsync -aL results/ results-final/
 ```
 
 (This is the one Lustre-to-Lustre copy the guide asks for, and it is short-lived:
-you delete `work` straight after and move `results-final` off Lustre at the end.)
+you delete the work folder straight after and move `results-final` off Lustre at
+the end.)
 
 Check that worked — this should print `0`:
 
@@ -509,14 +552,14 @@ Check that worked — this should print `0`:
 find results-final -type l | wc -l
 ```
 
-Now delete the temporary data, which is much bigger than your results:
+Now delete the work folder from Step 3, which is much bigger than your results:
 
 ```bash
-rm -rf work
+rm -rf /mnt/lustre/users/$USER/nf-work/$DATASET_NAME
 ```
 
-> Only do this once you are happy with the run. Deleting `work` means a future
-> `-resume` has to start from scratch.
+> Only do this once you are happy with the run. Deleting the work folder means a
+> future `-resume` has to start from scratch.
 
 Finally, move `results-final` off Lustre. This matters: Lustre is fast but
 expensive, so it cannot simply be expanded when it fills up. It is shared by
@@ -527,8 +570,8 @@ results belong once a run is done.
 ```bash
 module load gbi
 gbi data move --detach \
-  /mnt/lustre/users/$USER/my-first-run/results-final \
-  /mnt/user-data/$USER/my-first-run/results
+  /mnt/lustre/users/$USER/data/$DATASET_NAME/results-final \
+  /mnt/user-data/$USER/$DATASET_NAME/results
 ```
 
 `--detach` runs the transfer as a Slurm job so it survives you logging out.
@@ -540,18 +583,23 @@ gbi data move --detach \
 
 ## Running it again
 
-For a new dataset: make a new folder, copy your settings files into it, edit the
-paths, and submit again.
+For a new dataset: pick a new dataset name, make its two folders as in Step 3,
+copy your settings files into the run folder, edit the paths, and submit again.
+Run this from the previous run folder, so the `cp` finds your settings files:
 
 ```bash
-mkdir -p /mnt/lustre/users/$USER/my-second-run
-cp params.cluster.yaml lustre.config /mnt/lustre/users/$USER/my-second-run/
-cd /mnt/lustre/users/$USER/my-second-run
+DATASET_NAME=my-second-run
+RUN_DIR=/mnt/lustre/users/$USER/data/$DATASET_NAME
+export NXF_WORK=/mnt/lustre/users/$USER/nf-work/$DATASET_NAME
+mkdir -p $RUN_DIR
+mkdir -p $NXF_WORK
+cp params.cluster.yaml lustre.config $RUN_DIR/
+cd $RUN_DIR
 nano params.cluster.yaml
 
+module load nextflow
 sbatch -J nf-dnaseq -p cpu -t 5-00:00:00 \
-  --wrap="bash -lc 'module load nextflow && nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
-    -params-file params.cluster.yaml -profile cluster -c lustre.config -resume'"
+  --wrap='nextflow run EIT-GBI/nf-dnaseq -latest -params-file params.cluster.yaml -profile cluster -c lustre.config -resume'
 ```
 
 ---
@@ -566,7 +614,8 @@ tail -50 slurm-<your job number>.out
 
 | What you see | What it means | What to do |
 | --- | --- | --- |
-| `module: not found` | The `bash -lc '...'` part was dropped from the command. | Submit it exactly as written above. Slurm runs a plain `sh` otherwise, which has no `module`. |
+| `nextflow: command not found` | Nextflow was not loaded when you submitted. | Run `module load nextflow`, then the `sbatch` command again. |
+| A `work` folder appears inside your run folder | `NXF_WORK` was not set when you submitted, usually after logging out and back in. | Cancel the run, delete that `work` folder, redo the `export NXF_WORK=...` line from Step 3, and submit again. |
 | `Lmod has detected the following error: ... nextflow` | The Nextflow module is not available yet. | Check with `module avail nextflow`, then ask the platform team. |
 | `command not found` for a container tool | Nextflow was started on the login node instead of as a job. | Always start it with `sbatch`, never by typing `nextflow run ...` directly. |
 | `Failed to publish file: ... No data available` | A known Lustre storage fault: the copy step intermittently fails on files written moments earlier. | Make sure `lustre.config` exists and `-c lustre.config` is in your command, then submit again. Please also [report it](https://github.com/EIT-GBI/gbi-sandpit-cluster/issues). |
@@ -668,7 +717,7 @@ FASTQ pairs — which it downloads for you. Nothing to prepare.
 mkdir -p ~/nf-test
 cd ~/nf-test
 
-nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest -profile test,docker
+nextflow run EIT-GBI/nf-dnaseq -latest -profile test,docker
 ```
 
 The first run takes a few minutes while it downloads the tool containers. After
@@ -732,7 +781,7 @@ these files.
 Then run it with the same command you will use for your own data:
 
 ```bash
-nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+nextflow run EIT-GBI/nf-dnaseq -latest \
   -params-file params.example.yaml -profile docker -resume
 ```
 
@@ -837,7 +886,7 @@ and `Ctrl-X` to quit.
 ## Step 5 — Run it
 
 ```bash
-nextflow run https://github.com/EIT-GBI/nf-dnaseq.git -latest \
+nextflow run EIT-GBI/nf-dnaseq -latest \
   -params-file params.yaml -profile docker -resume
 ```
 
