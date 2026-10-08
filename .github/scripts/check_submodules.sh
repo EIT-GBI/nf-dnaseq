@@ -5,8 +5,10 @@
 # must move the submodule with it, or CI tests the old module and a release
 # ships a pointer that disagrees with what modules.versions claims.
 #
-# The tag's commit is read from the module's remote (ls-remote), because CI
-# checks submodules out shallow and without tags.
+# Both sides are read without needing the submodule checked out: the pointer
+# from the commit itself (git ls-tree), and the tag's commit from the module's
+# remote (ls-remote), because CI checks submodules out shallow and without
+# tags, or not at all.
 set -euo pipefail
 
 FAIL=0
@@ -25,11 +27,12 @@ while IFS='=' read -r module version; do
     continue
   fi
   path=$(git config -f .gitmodules --get "$key")
+  url=$(git config -f .gitmodules --get "${key%.path}.url")
   tag="v${version#v}"
 
   # The peeled ^{} line, when present, is the commit an annotated tag points to.
-  want=$(git -C "$path" ls-remote origin "refs/tags/${tag}" "refs/tags/${tag}^{}" | tail -n1 | cut -f1)
-  have=$(git -C "$path" rev-parse HEAD)
+  want=$(git ls-remote "$url" "refs/tags/${tag}" "refs/tags/${tag}^{}" | tail -n1 | cut -f1)
+  have=$(git ls-tree HEAD "$path" | awk '{print $3}')
 
   if [ -z "$want" ]; then
     echo "::error::${module}: tag ${tag} does not exist in its repo"
