@@ -114,11 +114,11 @@ nextflow_pipeline {
             params {
                 outdir = "$outputDir"
                 // A samplesheet without R1/R2, and a fastq_dir holding the
-                // reads with and without the _001 suffix
+                // reads with and without Illumina's S number and _001 suffix
                 def fq = new File("$outputDir/fastq")
                 fq.mkdirs()
                 ['SAMPLE1_R1.fastq.gz', 'SAMPLE1_R2.fastq.gz',
-                 'SAMPLE2_R1_001.fastq.gz', 'SAMPLE2_R2_001.fastq.gz',
+                 'SAMPLE2_S7_R1_001.fastq.gz', 'SAMPLE2_S7_R2_001.fastq.gz',
                  'SAMPLE10_R1.fastq.gz', 'SAMPLE10_R2.fastq.gz'].each { new File(fq, it).text = '' }
                 def sheet = new File("$outputDir/samplesheet.csv")
                 sheet.text = "sample,reference\nSAMPLE1,genome.fasta\nSAMPLE2,genome.fasta\n"

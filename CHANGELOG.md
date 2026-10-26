@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Samplesheet `R1`/`R2` columns are optional when `fastq_dir` is set: rows
-  without them find `<sample>_R1*.fastq.gz` / `_R2*` in `fastq_dir`.
+  without them find `<sample>_*R1*.fastq.gz` / `_*R2*` in `fastq_dir`.
 - `manifest {}` block declaring the pipeline name, version and a minimum
   Nextflow version of 26.04.4.
 - Defaults for every parameter, so the pipeline no longer requires a params

@@ -186,8 +186,9 @@ SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta
 `reference` is a path **relative to `reference_dir`** (see below).
 
 `R1` and `R2` are optional when `fastq_dir` is also set. Leave them out and the
-pipeline finds each sample's reads in `fastq_dir` as `<sample>_R1*.fastq.gz` /
-`<sample>_R2*.fastq.gz` (exactly one file each):
+pipeline finds each sample's reads in `fastq_dir` as `<sample>_*R1*.fastq.gz` /
+`<sample>_*R2*.fastq.gz` (exactly one file each), so Illumina names such as
+`<sample>_S73_R1_001.fastq.gz` work with just `<sample>` in the samplesheet:
 
 ```csv
 sample,reference
