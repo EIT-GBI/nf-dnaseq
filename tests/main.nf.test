@@ -105,4 +105,36 @@ nextflow_pipeline {
             assert workflow.trace.tasks().every { !it.name.startsWith('PARABRICKS_MUTECTCALLER') }
         }
     }
+
+    test("sample-only samplesheet finds its reads in fastq_dir") {
+
+        options "-stub-run -output-dir $outputDir"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // A samplesheet without R1/R2, and a fastq_dir holding the
+                // reads with and without Illumina's S number and _001 suffix
+                def fq = new File("$outputDir/fastq")
+                fq.mkdirs()
+                ['SAMPLE1_R1.fastq.gz', 'SAMPLE1_R2.fastq.gz',
+                 'SAMPLE2_S7_R1_001.fastq.gz', 'SAMPLE2_S7_R2_001.fastq.gz',
+                 'SAMPLE10_R1.fastq.gz', 'SAMPLE10_R2.fastq.gz'].each { new File(fq, it).text = '' }
+                def sheet = new File("$outputDir/samplesheet.csv")
+                sheet.text = "sample,reference\nSAMPLE1,genome.fasta\nSAMPLE2,genome.fasta\n"
+                samplesheet = sheet.path
+                fastq_dir   = fq.path
+            }
+        }
+
+        then {
+            assert workflow.success
+
+            def names = { sub -> (new File("$outputDir/$sub").list() ?: []) as List }
+
+            // Only the samples listed, not every pair in fastq_dir
+            assert names('alignment').containsAll(['SAMPLE1.sorted.bam', 'SAMPLE2.sorted.bam'])
+            assert !names('alignment').any { it.startsWith('SAMPLE10') }
+        }
+    }
 }
