@@ -5,6 +5,8 @@
 # set fastq_dir + reference_genome instead and the pipeline will build it.
 
 # Path to a CSV with columns: sample,R1,R2,reference
+# R1/R2 can be left out (columns: sample,reference) when fastq_dir is set:
+# each sample's reads are then found there as <sample>_R1*.fastq.gz / _R2*.
 samplesheet: null
 
 # Where published results go
@@ -12,6 +14,7 @@ outdir: './results'
 
 # If you don't have a samplesheet, specify a fastq dir and a reference genome.
 # reference_genome is resolved relative to reference_dir.
+# With a samplesheet, fastq_dir is where rows without R1/R2 find their reads.
 fastq_dir: null
 reference_genome: null
 

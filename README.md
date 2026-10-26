@@ -185,6 +185,19 @@ SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta
 
 `reference` is a path **relative to `reference_dir`** (see below).
 
+`R1` and `R2` are optional when `fastq_dir` is also set. Leave them out and the
+pipeline finds each sample's reads in `fastq_dir` as `<sample>_R1*.fastq.gz` /
+`<sample>_R2*.fastq.gz` (exactly one file each):
+
+```csv
+sample,reference
+SAMPLE_A,mouse/genome.fasta
+SAMPLE_B,human/genome.fasta
+```
+
+This lets you pick which samples to run, or give each its own reference, without
+typing out FASTQ paths. A row that does give `R1` and `R2` uses them as-is.
+
 An optional `platform` column sets the sequencing platform recorded as `PL` in
 each BAM's read group, so one run can mix platforms:
 
@@ -244,7 +257,7 @@ These live in `params.cluster.yaml`:
 | Parameter | Meaning |
 |---|---|
 | `samplesheet` | Path to a samplesheet CSV, or `null` to build one from `fastq_dir` |
-| `fastq_dir` | Directory of paired FASTQs (used when `samplesheet: null`) |
+| `fastq_dir` | Directory of paired FASTQs: the samplesheet is built from it when `samplesheet: null`, otherwise it is where samplesheet rows without `R1`/`R2` find their reads |
 | `reference_genome` | Reference FASTA, **relative to** `reference_dir` |
 | `reference_dir` | Root directory holding reference genomes + indexes |
 | `outdir` | Where published results go |
