@@ -1,0 +1,17 @@
+nextflow_pipeline {
+
+    name "Pipe failures fail the task (issue #19)"
+    script "./pipefail/main.nf"
+
+    test("upstream failure fails the task even when the downstream command writes its output") {
+
+        then {
+            // Without pipefail in nextflow.config the task exits 0 and the
+            // truncated partial.txt is accepted as its output. Check the task
+            // itself failed, not just the run (a compile error also fails it).
+            assert workflow.failed
+            assert workflow.trace.succeeded().size() == 0
+            assert workflow.trace.failed()*.name == ['PIPE_UPSTREAM_FAILS']
+        }
+    }
+}
