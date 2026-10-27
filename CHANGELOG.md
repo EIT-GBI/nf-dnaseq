@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command in a pipe fails. Up to v1.3.0 a `bwa mem` crash or OOM-kill in
   `BWA_MEM` could still yield a truncated, cached BAM because `samtools sort`
   exited 0. v1.4.0 already fixed the piped modules themselves (nf-mod-bwa
-  1.1.0, nf-mod-bcftools 1.1.0, nf-mod-samtools 1.2.0, whose changed scripts
-  also make `-resume` redo those steps); this covers every other process,
-  including local ones and future modules.
+  1.1.0, nf-mod-bcftools 1.1.0, nf-mod-samtools 1.2.0). Their changed scripts
+  and containers make the first `-resume` of a run cached by v1.3.0 or earlier
+  redo those steps once; after that, caching works as usual. This covers
+  every other process, including local ones and future modules.
 
 ### Added
 
