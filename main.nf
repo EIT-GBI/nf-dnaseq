@@ -113,7 +113,9 @@ workflow {
             // R1/R2 may be left out, in which case the reads are looked up
             // in params.fastq_dir by sample name. The * after <sample>_ lets
             // Illumina's S number through (<sample>_S73_R1_001); the _ keeps
-            // SAMPLE1 from matching SAMPLE10's files.
+            // SAMPLE1 from matching SAMPLE10's files. The reads may sit
+            // directly in fastq_dir (Illumina) or in a folder named after the
+            // sample (Element's bases2fastq: Samples/<project>/<sample>/).
             if( row.R1 && row.R2 )
                 return tuple(meta,
                              file(row.R1, checkIfExists: true),
@@ -121,9 +123,11 @@ workflow {
             if( !params.fastq_dir )
                 error "Sample '${row.sample}' has no R1/R2 in the samplesheet: give both, or set params.fastq_dir to find them there."
             def reads = ['R1', 'R2'].collect { read ->
-                def found = file("${params.fastq_dir}/${row.sample}_*${read}*.fastq.gz")
+                def pattern = "${row.sample}_*${read}*.fastq.gz"
+                def found = files("${params.fastq_dir}/${pattern}") +
+                            files("${params.fastq_dir}/${row.sample}/${pattern}")
                 if( found.size() != 1 )
-                    error "Sample '${row.sample}': expected one ${row.sample}_*${read}*.fastq.gz in ${params.fastq_dir}, found ${found.size()}"
+                    error "Sample '${row.sample}': expected one ${pattern} in ${params.fastq_dir} or ${params.fastq_dir}/${row.sample}/, found ${found.size()}"
                 found[0]
             }
             tuple(meta, reads[0], reads[1])

@@ -120,8 +120,12 @@ nextflow_pipeline {
                 ['SAMPLE1_R1.fastq.gz', 'SAMPLE1_R2.fastq.gz',
                  'SAMPLE2_S7_R1_001.fastq.gz', 'SAMPLE2_S7_R2_001.fastq.gz',
                  'SAMPLE10_R1.fastq.gz', 'SAMPLE10_R2.fastq.gz'].each { new File(fq, it).text = '' }
+                // Element's bases2fastq layout: one folder per sample
+                def sub = new File(fq, 'colc_EXP13_p-cl2')
+                sub.mkdirs()
+                ['colc_EXP13_p-cl2_R1.fastq.gz', 'colc_EXP13_p-cl2_R2.fastq.gz'].each { new File(sub, it).text = '' }
                 def sheet = new File("$outputDir/samplesheet.csv")
-                sheet.text = "sample,reference\nSAMPLE1,genome.fasta\nSAMPLE2,genome.fasta\n"
+                sheet.text = "sample,reference\nSAMPLE1,genome.fasta\nSAMPLE2,genome.fasta\ncolc_EXP13_p-cl2,genome.fasta\n"
                 samplesheet = sheet.path
                 fastq_dir   = fq.path
             }
@@ -133,7 +137,7 @@ nextflow_pipeline {
             def names = { sub -> (new File("$outputDir/$sub").list() ?: []) as List }
 
             // Only the samples listed, not every pair in fastq_dir
-            assert names('alignment').containsAll(['SAMPLE1.sorted.bam', 'SAMPLE2.sorted.bam'])
+            assert names('alignment').containsAll(['SAMPLE1.sorted.bam', 'SAMPLE2.sorted.bam', 'colc_EXP13_p-cl2.sorted.bam'])
             assert !names('alignment').any { it.startsWith('SAMPLE10') }
         }
     }
