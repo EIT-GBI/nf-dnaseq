@@ -188,7 +188,10 @@ SAMPLE_A,/abs/path/A_R1.fastq.gz,/abs/path/A_R2.fastq.gz,mouse/genome.fasta
 `R1` and `R2` are optional when `fastq_dir` is also set. Leave them out and the
 pipeline finds each sample's reads in `fastq_dir` as `<sample>_*R1*.fastq.gz` /
 `<sample>_*R2*.fastq.gz` (exactly one file each), so Illumina names such as
-`<sample>_S73_R1_001.fastq.gz` work with just `<sample>` in the samplesheet:
+`<sample>_S73_R1_001.fastq.gz` work with just `<sample>` in the samplesheet.
+The reads may also sit in a folder named after the sample,
+`<fastq_dir>/<sample>/<sample>_R1.fastq.gz`, as Element AVITI's `bases2fastq`
+writes them: point `fastq_dir` at `Samples/<project>/`.
 
 ```csv
 sample,reference

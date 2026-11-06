@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Samplesheet rows without `R1`/`R2` now also find their reads in a folder
+  named after the sample, `<fastq_dir>/<sample>/`, the layout Element AVITI's
+  `bases2fastq` writes (`Samples/<project>/<sample>/`). They used to fail with
+  "found 0". The lookup uses `files()`, which removes Nextflow's warning about
+  `file()` called with a glob.
 - Every process now runs with `bash -euo pipefail`, so a task fails when any
   command in a pipe fails. Up to v1.3.0 a `bwa mem` crash or OOM-kill in
   `BWA_MEM` could still yield a truncated, cached BAM because `samtools sort`
