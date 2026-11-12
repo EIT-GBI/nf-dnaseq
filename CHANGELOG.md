@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   handed the plain fasta. Parabricks parses the reference itself rather than
   reading the `.fai`, so with a bgzipped one `pbrun` saw only part of the
   contigs and failed with "does not contain chromosome ..." after alignment had
-  already succeeded. The decompressed fasta is published back next to the
-  original, so later runs skip the step; a remote or read-only `reference_dir`
-  is not fatal.
+  already succeeded. The decompression happens in the work dir, so a run with a
+  gzipped reference now works but pays for it each time; the run warns and
+  points at `scripts/index_reference.sbatch`, which does it once.
+- `scripts/index_reference.sbatch` decompresses a gzipped reference beside the
+  original before indexing it, so the plain fasta and its indexes are both
+  there for later runs.

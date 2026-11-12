@@ -131,7 +131,13 @@ workflow {
         plain:      true
     }
     DECOMPRESS_REFERENCE(
-        gz_branch.compressed.map { reference -> tuple(reference, refFasta(reference_dir, reference)) }
+        gz_branch.compressed.map { reference ->
+            log.warn "Reference ${reference} is gzipped, so this run decompresses it and rebuilds its " +
+                     "indexes. Parabricks cannot read a gzipped reference at all. Run " +
+                     "scripts/index_reference.sbatch on it once to put the plain fasta and its indexes " +
+                     "beside the original, and later runs will reuse them."
+            tuple(reference, refFasta(reference_dir, reference))
+        }
     )
 
     // tuple(key, plain reference, fasta), one entry per distinct reference.

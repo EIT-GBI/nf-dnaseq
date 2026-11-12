@@ -96,21 +96,15 @@ def needsDecompression(reference_dir, reference) {
     isGzipped(reference) && !file(refUri(reference_dir, plainRef(reference))).exists()
 }
 
-// Directory holding this reference, for publishing siblings back next to it
-def refParentDir(reference_dir, reference) {
-    def rel = "${reference}"
-    def cut = rel.lastIndexOf('/')
-    cut > 0 ? "${reference_dir}/${rel.substring(0, cut)}" : "${reference_dir}"
-}
-
 process DECOMPRESS_REFERENCE {
     tag "${gz.name}"
 
-    // Published next to the original, so later runs - and other pipelines on
-    // the same cluster - skip this step entirely. A read-only or remote
-    // reference_dir is not fatal: the run itself uses the work dir copy.
-    publishDir path: { refParentDir(params.reference_dir, reference) }, mode: 'copy', overwrite: false,
-               failOnError: false, enabled: !"${params.reference_dir}".contains('://')
+    // The plain fasta stays in the work dir. Writing it back beside the
+    // original would be faster on the next run, but a shared reference_dir is
+    // often read-only, and this repo publishes through main.nf's output block
+    // alone. scripts/index_reference.sbatch is the supported way to do it once:
+    // it decompresses and indexes beside the reference, and then this process
+    // never runs at all.
 
     input:
     tuple val(reference), path(gz)
