@@ -23,7 +23,8 @@ include {BCFTOOLS_CONSENSUS} from './modules/bcftools/consensus/main.nf'
 include {BCFTOOLS_CALL} from './modules/bcftools/call/main.nf'
 include {BCFTOOLS_CSV} from './modules/bcftools/csv/main.nf'
 include {BCFTOOLS_VCF} from './modules/bcftools/vcf/main.nf'
-include {refFasta; bwaIndexFor; bwaIndexExists; faidxFor; faidxExists} from './modules/utils/references.nf'
+include {refFasta; bwaIndexFor; bwaIndexExists; faidxFor; faidxExists;
+         refKey; plainRef; needsDecompression; DECOMPRESS_REFERENCE} from './modules/utils/references.nf'
 
 
 workflow {
@@ -120,35 +121,66 @@ workflow {
         .map { meta, _r1, _r2 -> meta.reference }
         .unique()
 
+    // Normalise every reference to a plain, uncompressed fasta before anything
+    // indexes or reads it. modules/utils/references.nf has the why: the tools
+    // downstream disagree about what they can read from a .gz, and Parabricks
+    // cannot read one at all. A gzipped reference whose plain fasta already
+    // sits beside it costs nothing here.
+    gz_branch = ref_ch.branch { reference ->
+        compressed: needsDecompression(reference_dir, reference)
+        plain:      true
+    }
+    DECOMPRESS_REFERENCE(
+        gz_branch.compressed.map { reference -> tuple(reference, refFasta(reference_dir, reference)) }
+    )
+
+    // tuple(key, plain reference, fasta), one entry per distinct reference.
+    // The plain reference is relative to reference_dir, which is where the
+    // index checks below look for something to reuse. A reference this run
+    // decompressed has nothing beside it yet, so its indexes get built from
+    // the work dir copy and travel bundled with it.
+    fasta_ch = gz_branch.plain
+        .map { reference ->
+            tuple(refKey(reference), plainRef(reference), refFasta(reference_dir, plainRef(reference)))
+        }
+        .mix(
+            DECOMPRESS_REFERENCE.out.fasta.map { reference, fasta ->
+                tuple(refKey(reference), plainRef(reference), fasta)
+            }
+        )
+
     // Index each reference if it is not already: reuse what sits next to the
     // fasta, otherwise build it once per reference. Both indexes are handled
     // the same way, so a bare .fasta is enough to run the pipeline.
-    bwa_branch = ref_ch.branch { reference ->
+    bwa_branch = fasta_ch.branch { _key, reference, _fasta ->
         ready:   bwaIndexExists(reference_dir, reference)
         missing: true
     }
-    BWA_INDEX(bwa_branch.missing.map { reference -> refFasta(reference_dir, reference) })
+    BWA_INDEX(bwa_branch.missing.map { _key, _reference, fasta -> fasta })
 
-    // tuple(fasta name, tuple(fasta, index files)) - keyed so samples can join it
+    // tuple(key, tuple(fasta, index files)) - keyed so samples can join it
     bwa_index_ch = bwa_branch.ready
-        .map { reference -> bwaIndexFor(reference_dir, reference) }
-        .mix(BWA_INDEX.out.index)
-        .map { fasta, index_files -> tuple(fasta.name, tuple(fasta, index_files)) }
+        .map { key, reference, _fasta -> tuple(key, bwaIndexFor(reference_dir, reference)) }
+        .mix(BWA_INDEX.out.index.map { fasta, index_files -> tuple(fasta.name, tuple(fasta, index_files)) })
 
     // The .fai is needed by coverage and by every variant caller
-    fai_branch = ref_ch.branch { reference ->
+    fai_branch = fasta_ch.branch { _key, reference, _fasta ->
         ready:   faidxExists(reference_dir, reference)
         missing: true
     }
-    SAMTOOLS_FAIDX(
-        fai_branch.missing.map { reference -> tuple([id: reference], refFasta(reference_dir, reference)) }
-    )
+    SAMTOOLS_FAIDX(fai_branch.missing.map { key, _reference, fasta -> tuple([id: key], fasta) })
 
-    // tuple(fasta name, tuple(fasta, fai))
+    // tuple(key, tuple(fasta, fai)). A freshly built .fai is paired back with
+    // the fasta it was built from by key, rather than re-resolved against
+    // reference_dir: that fasta may be the work dir copy this run decompressed.
     faidx_ch = fai_branch.ready
-        .map { reference -> faidxFor(reference_dir, reference) }
-        .mix(SAMTOOLS_FAIDX.out.fai.map { meta, fai -> tuple(refFasta(reference_dir, meta.id), fai) })
-        .map { fasta, fai -> tuple(fasta.name, tuple(fasta, fai)) }
+        .map { key, reference, _fasta -> tuple(key, faidxFor(reference_dir, reference)) }
+        .mix(
+            SAMTOOLS_FAIDX.out.fai
+                .map { meta, fai -> tuple(meta.id, fai) }
+                .join(fasta_ch.map { key, _reference, fasta -> tuple(key, fasta) })
+                .map { key, fai, fasta -> tuple(key, tuple(fasta, fai)) }
+        )
 
     // Trim the reads
     if (params.trimmer == 'fastp') {
@@ -176,7 +208,7 @@ workflow {
 
     // Pair every sample with the reference bundle for its own reference
     aln_in = trimmed_ch
-        .map { meta, r1, r2 -> tuple(refFasta(reference_dir, meta.reference).name, meta, r1, r2) }
+        .map { meta, r1, r2 -> tuple(refKey(meta.reference), meta, r1, r2) }
         .combine(ref_bundle_ch, by: 0)
         .multiMap { _key, meta, r1, r2, index ->
             reads: tuple(meta, r1, r2)
@@ -199,7 +231,7 @@ workflow {
 
     // Create bigwig files
     bigwig_in = bam_ch
-        .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+        .map { meta, bam, bai -> tuple(refKey(meta.reference), meta, bam, bai) }
         .combine(faidx_ch, by: 0)
         .multiMap { _key, meta, bam, bai, faidx ->
             reads: tuple(meta, bam, bai)
@@ -211,7 +243,7 @@ workflow {
     // bcftools
     if ('bcftools' in callers) {
         bcf_in = bam_ch
-            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .map { meta, bam, bai -> tuple(refKey(meta.reference), meta, bam, bai) }
             .combine(faidx_ch, by: 0)
             .multiMap { _key, meta, bam, bai, faidx ->
                 bam: tuple(meta, bam, bai)
@@ -225,7 +257,7 @@ workflow {
         ch_csv = BCFTOOLS_CSV.out.csv
         
         cons_in = BCFTOOLS_CALL.out.bcf
-            .map { meta, bcf, csi -> tuple(refFasta(reference_dir, meta.reference).name, meta, bcf, csi) }
+            .map { meta, bcf, csi -> tuple(refKey(meta.reference), meta, bcf, csi) }
             .combine(faidx_ch, by: 0)
             .multiMap { _key, meta, bcf, csi, faidx ->
                 bcf:   tuple(meta, bcf, csi)
@@ -238,7 +270,7 @@ workflow {
     // deepvariant
     if ('deepvariant' in callers) {
         dv_in = bam_ch
-            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .map { meta, bam, bai -> tuple(refKey(meta.reference), meta, bam, bai) }
             .combine(faidx_ch, by: 0)
             .multiMap { _key, meta, bam, bai, faidx ->
                 bam: tuple(meta, bam, bai)
@@ -251,7 +283,7 @@ workflow {
     // mutect2
     if ('mutect2' in callers || 'mutect' in callers) {  
         mt_in = bam_ch
-            .map { meta, bam, bai -> tuple(refFasta(reference_dir, meta.reference).name, meta, bam, bai) }
+            .map { meta, bam, bai -> tuple(refKey(meta.reference), meta, bam, bai) }
             .combine(faidx_ch, by: 0)
             .multiMap { _key, meta, bam, bai, faidx ->
                 bam: tuple(meta, bam, bai)

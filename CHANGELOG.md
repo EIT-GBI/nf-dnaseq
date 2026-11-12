@@ -44,3 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed a stray debug `print(rows)` from `scripts/generate_samplesheet.py`.
 - Parabricks GPU steps (`PARABRICKS_*`) now retry on exit status 255, a
   transient GPU failure seen with DeepVariant that succeeds on resume.
+- A gzipped reference is now decompressed once, up front, and every process is
+  handed the plain fasta. Parabricks parses the reference itself rather than
+  reading the `.fai`, so with a bgzipped one `pbrun` saw only part of the
+  contigs and failed with "does not contain chromosome ..." after alignment had
+  already succeeded. The decompressed fasta is published back next to the
+  original, so later runs skip the step; a remote or read-only `reference_dir`
+  is not fatal.
