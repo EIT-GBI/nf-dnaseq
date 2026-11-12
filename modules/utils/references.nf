@@ -51,3 +51,74 @@ def faidxFor(reference_dir, reference) {
         file("${uri}.fai", checkIfExists: true)
     )
 }
+
+// ---------------------------------------------------------------------------
+// Normalising a reference to a plain, uncompressed fasta
+// ---------------------------------------------------------------------------
+//
+// A samplesheet may name a bgzipped reference (`genome.fa.gz`), but the tools
+// downstream do not agree on what they can read:
+//
+//   bwa       reads bgzip fine
+//   bcftools  needs a .gzi beside the .fai
+//   bedtools  only ever touches the .fai
+//   pbrun     cannot read it at all - it parses the fasta itself, sees only
+//             part of the contigs and then reports the rest as missing from
+//             the reference, long after alignment has succeeded
+//
+// So the reference is normalised once, here, before anything indexes or reads
+// it: every consumer is handed one plain fasta, and no process ever receives a
+// .gz. Each reference is decompressed at most once per cluster - the result is
+// published back next to the original, where the next run's existence checks
+// find it.
+
+// True when the samplesheet entry names a gzipped fasta
+def isGzipped(reference) {
+    "${reference}".endsWith('.gz')
+}
+
+// The reference as every tool downstream sees it: the uncompressed fasta
+def plainRef(reference) {
+    isGzipped(reference) ? "${reference}"[0..-4] : "${reference}"
+}
+
+// The key samples and reference bundles are joined on. Derived from the
+// samplesheet *string*, never from a file object: the plain fasta may not
+// exist on disk yet when the key is first needed.
+def refKey(reference) {
+    plainRef(reference).tokenize('/')[-1]
+}
+
+// True when this reference still has to be decompressed. A gzipped reference
+// whose plain fasta already sits beside it - published by an earlier run, or
+// put there by hand - is used directly.
+def needsDecompression(reference_dir, reference) {
+    isGzipped(reference) && !file(refUri(reference_dir, plainRef(reference))).exists()
+}
+
+process DECOMPRESS_REFERENCE {
+    tag "${gz.name}"
+
+    // The plain fasta stays in the work dir. Writing it back beside the
+    // original would be faster on the next run, but a shared reference_dir is
+    // often read-only, and this repo publishes through main.nf's output block
+    // alone. scripts/index_reference.sbatch is the supported way to do it once:
+    // it decompresses and indexes beside the reference, and then this process
+    // never runs at all.
+
+    input:
+    tuple val(reference), path(gz)
+
+    output:
+    tuple val(reference), path("${gz.baseName}"), emit: fasta
+
+    script:
+    """
+    gzip -cd ${gz} > ${gz.baseName}
+    """
+
+    stub:
+    """
+    touch ${gz.baseName}
+    """
+}

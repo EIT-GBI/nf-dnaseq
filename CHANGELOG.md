@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `task.ext.args` from `nextflow.config`.
 - Reference helpers in `modules/utils/references.nf` take the reference
   directory as an argument rather than reading `params.reference_dir`.
+- `params.cluster.yaml` no longer requests `deepvariant`. It ships with
+  `bcftools` alone, matching the pipeline's own default in `nextflow.config`,
+  so an unedited copy of that file no longer queues for GPU nodes. Uncomment
+  `deepvariant` or `mutect2` to turn the Parabricks callers back on.
 - Module submodules and their containers are pinned to release tags instead of
   floating commits and `:latest`.
 - The automation workflows (`release.yml`, `auto-release.yml`,
@@ -62,3 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed a stray debug `print(rows)` from `scripts/generate_samplesheet.py`.
 - Parabricks GPU steps (`PARABRICKS_*`) now retry on exit status 255, a
   transient GPU failure seen with DeepVariant that succeeds on resume.
+- A gzipped reference is now decompressed once, up front, and every process is
+  handed the plain fasta. Parabricks parses the reference itself rather than
+  reading the `.fai`, so with a bgzipped one `pbrun` saw only part of the
+  contigs and failed with "does not contain chromosome ..." after alignment had
+  already succeeded. The decompression happens in the work dir, so a run with a
+  gzipped reference now works but pays for it each time; the run warns and
+  points at `scripts/index_reference.sbatch`, which does it once.
+- `scripts/index_reference.sbatch` decompresses a gzipped reference beside the
+  original before indexing it, so the plain fasta and its indexes are both
+  there for later runs.

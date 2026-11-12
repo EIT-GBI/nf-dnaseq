@@ -37,9 +37,14 @@ skip_variant_calling: false
 
 # Variant calling: any of bcftools, deepvariant, mutect2
 # Ignored when skip_variant_calling is true.
+#
+# deepvariant and mutect2 are Parabricks steps: uncomment either one only when
+# you have GPU nodes to run it on. They queue for GPUs even when alignment ran
+# on CPU. bcftools alone is what this file ships with, matching the pipeline's
+# own default in nextflow.config.
 variant_callers:
   - bcftools
-  - deepvariant
+#  - deepvariant
 #  - mutect2
 
 # Variant filtering thresholds

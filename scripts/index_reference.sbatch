@@ -38,6 +38,25 @@ FASTA=$(readlink -f "$FASTA")
 REF_DIR=$(dirname "$FASTA")
 REF_NAME=$(basename "$FASTA")
 
+# A gzipped reference is decompressed beside the original first, and everything
+# below indexes the plain fasta. Parabricks parses the reference itself rather
+# than reading the .fai, so it cannot read a bgzipped one - and an index built
+# on the .gz is of no use to it. bwa reads bgzip happily, which is why this
+# only shows up later, as a GPU caller reporting contigs "not in the reference".
+case "$FASTA" in
+    *.gz)
+        PLAIN="${FASTA%.gz}"
+        if [ -e "$PLAIN" ]; then
+            echo "Plain fasta already present, skipping decompression"
+        else
+            echo "Decompressing $REF_NAME"
+            gzip -cd "$FASTA" > "$PLAIN"
+        fi
+        FASTA="$PLAIN"
+        REF_NAME=$(basename "$FASTA")
+        ;;
+esac
+
 BWA_IMG='/mnt/lustre/containers/.staging/nf/cache/ghcr.io-eit-gbi-nf-mod-bwa-latest.img'
 SAM_IMG='/mnt/lustre/containers/.staging/nf/cache/ghcr.io-eit-gbi-nf-mod-samtools-latest.img'
 [ -f "$BWA_IMG" ] || BWA_IMG='docker://ghcr.io/eit-gbi/nf-mod-bwa:latest'
