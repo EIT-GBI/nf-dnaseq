@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `task.ext.args` from `nextflow.config`.
 - Reference helpers in `modules/utils/references.nf` take the reference
   directory as an argument rather than reading `params.reference_dir`.
+- `params.cluster.yaml` no longer requests `deepvariant`. It ships with
+  `bcftools` alone, matching the pipeline's own default in `nextflow.config`,
+  so an unedited copy of that file no longer queues for GPU nodes. Uncomment
+  `deepvariant` or `mutect2` to turn the Parabricks callers back on.
 - Module submodules and their containers are pinned to release tags instead of
   floating commits and `:latest`.
 - The automation workflows (`release.yml`, `auto-release.yml`,

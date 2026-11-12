@@ -863,8 +863,8 @@ Use **full paths**, not `~`. Run `pwd` in a folder to see its full path.
 > joins them, so the example above looks for
 > `/Users/you/references/sarscov2/genome.fasta`.
 
-Then find the `variant_callers` block further down and **comment out
-`deepvariant`**, so only `bcftools` is left:
+Then find the `variant_callers` block further down and check that only
+`bcftools` is active:
 
 ```yaml
 variant_callers:
@@ -873,10 +873,10 @@ variant_callers:
 #  - mutect2
 ```
 
-This one matters. The file ships with `deepvariant` switched on, and
-`deepvariant` is a GPU step: left in, your run downloads a multi-gigabyte
-NVIDIA container and then fails for want of a graphics card. `bcftools` is the
-one that works here.
+The file ships this way, so there is nothing to change - but it is worth
+knowing why. `deepvariant` is a GPU step: switched on, your run downloads a
+multi-gigabyte NVIDIA container and then fails for want of a graphics card.
+`bcftools` is the one that works here.
 
 In `nano`, use the arrow keys to move around, then `Ctrl-O` and `Enter` to save,
 and `Ctrl-X` to quit.

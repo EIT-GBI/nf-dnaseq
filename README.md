@@ -261,16 +261,16 @@ Example `variant_callers` block (YAML list — comment/uncomment to choose):
 ```yaml
 variant_callers:
   - bcftools
-  - deepvariant
+#  - deepvariant
 #  - mutect2
 ```
 
-> **Mind the two different defaults.** The block above is what
-> `params.cluster.yaml` ships with, so a run using that file unedited requests
-> **`deepvariant`, which is GPU-only** - it will queue for GPU nodes even if you
-> aligned on CPU. The pipeline's own default in `nextflow.config` is
-> `['bcftools']` alone, which is what you get with no params file. Drop the
-> `deepvariant` line unless you want the GPU path.
+> **Both defaults agree.** The block above is what `params.cluster.yaml` ships
+> with, and the pipeline's own default in `nextflow.config` is the same:
+> `['bcftools']` alone, which is what you get with no params file. Uncomment
+> `deepvariant` or `mutect2` only when you want the GPU path - both are
+> **GPU-only** Parabricks steps and will queue for GPU nodes even if you
+> aligned on CPU.
 
 To skip variant calling altogether, leave `variant_callers` as it is and set:
 
